@@ -1,0 +1,30 @@
+# Maven build output
+target/
+
+# IntelliJ IDEA
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+
+# Eclipse / VS Code
+.classpath
+.project
+.settings/
+.vscode/
+bin/
+
+# Local databases and exported reports (FileGuard stores its DB in ~/.fileguard by default)
+*.db
+*.db-journal
+*.sqlite
+*.csv
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log

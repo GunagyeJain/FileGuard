@@ -1,0 +1,36 @@
+/* Light theme: colour tokens only. Layout and shapes live in base.css. */
+.root {
+    -fg-bg: #f4f6fb;
+    -fg-surface: #ffffff;
+    -fg-surface-2: #f7f8fc;
+    -fg-hover: #eef1f8;
+    -fg-border: #e3e7ef;
+    -fg-border-strong: #cfd6e3;
+    -fg-text: #172033;
+    -fg-text-muted: #657089;
+    -fg-sidebar: #ffffff;
+
+    -fg-accent: #4f46e5;
+    -fg-accent-hover: #4338ca;
+    -fg-accent-soft: #eef0ff;
+    -fg-on-accent: #ffffff;
+
+    -fg-success: #15803d;
+    -fg-success-soft: #e7f6ec;
+    -fg-warning: #b45309;
+    -fg-warning-soft: #fdf3e2;
+    -fg-danger: #c62828;
+    -fg-danger-soft: #fdecec;
+    -fg-info: #0369a1;
+    -fg-info-soft: #e5f3fb;
+    -fg-neutral: #5b6475;
+    -fg-neutral-soft: #eef0f4;
+
+    /* Modena base colours, so standard controls (scroll bars, menus, dialogs) match. */
+    -fx-base: #f4f6fb;
+    -fx-background: #f4f6fb;
+    -fx-control-inner-background: #ffffff;
+    -fx-accent: #4f46e5;
+    -fx-focus-color: #4f46e5;
+    -fx-faint-focus-color: #4f46e522;
+}

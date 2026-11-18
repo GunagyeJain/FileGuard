@@ -1,0 +1,35 @@
+/* Dark theme: colour tokens only. Layout and shapes live in base.css. */
+.root {
+    -fg-bg: #0e131d;
+    -fg-surface: #161c29;
+    -fg-surface-2: #1b2232;
+    -fg-hover: #222a3c;
+    -fg-border: #262f42;
+    -fg-border-strong: #364056;
+    -fg-text: #e5e9f2;
+    -fg-text-muted: #8e98ad;
+    -fg-sidebar: #121825;
+
+    -fg-accent: #8b8ff8;
+    -fg-accent-hover: #a2a5fa;
+    -fg-accent-soft: #252848;
+    -fg-on-accent: #0e131d;
+
+    -fg-success: #4ade80;
+    -fg-success-soft: #15291f;
+    -fg-warning: #fbbf24;
+    -fg-warning-soft: #2c2412;
+    -fg-danger: #f87171;
+    -fg-danger-soft: #2e1719;
+    -fg-info: #38bdf8;
+    -fg-info-soft: #112534;
+    -fg-neutral: #a3acbf;
+    -fg-neutral-soft: #232a39;
+
+    -fx-base: #1b2232;
+    -fx-background: #0e131d;
+    -fx-control-inner-background: #161c29;
+    -fx-accent: #8b8ff8;
+    -fx-focus-color: #8b8ff8;
+    -fx-faint-focus-color: #8b8ff822;
+}
