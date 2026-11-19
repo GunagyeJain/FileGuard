@@ -1,0 +1,2 @@
+# Keep demo scripts byte-identical on every machine so DEMO.md sizes match
+*.ps1 text eol=lf
