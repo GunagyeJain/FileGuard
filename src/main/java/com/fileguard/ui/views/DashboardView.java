@@ -8,8 +8,8 @@ import com.fileguard.ui.Icons;
 import com.fileguard.ui.Page;
 import com.fileguard.ui.UiUtil;
 import com.fileguard.ui.components.StatCard;
+import javafx.application.Platform;
 import javafx.collections.FXCollections;
-import javafx.concurrent.Task;
 import javafx.geometry.Pos;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
@@ -21,7 +21,6 @@ import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.function.Consumer;
 
@@ -29,6 +28,10 @@ import java.util.function.Consumer;
 public class DashboardView extends StackPane implements Refreshable {
 
     private static final int RECENT_LIMIT = 10;
+    private static final double TABLE_MIN_HEIGHT = 260;
+    private static final double SIDE_PANEL_MIN_WIDTH = 320;
+    private static final double SIDE_PANEL_WIDTH = 340;
+    private static final double SIDE_PANEL_MAX_WIDTH = 360;
 
     private final AppContext ctx;
     private final StatCard scansCard = new StatCard("Scans completed", "accent");
@@ -42,8 +45,20 @@ public class DashboardView extends StackPane implements Refreshable {
 
     public DashboardView(AppContext ctx, Consumer<Page> navigator) {
         this.ctx = ctx;
+        HBox columns = new HBox(24, buildRecentScans(navigator), buildSidePanel(navigator));
+        VBox.setVgrow(columns, Priority.ALWAYS);
+        VBox page = new VBox(20,
+                UiUtil.pageHeader("Dashboard", "Overview of monitored folders, recent scans and the local backend."),
+                UiUtil.metricStrip(scansCard, baselinesCard, lastCheckCard, redundantCard),
+                columns,
+                UiUtil.notice("FileGuard identifies differences using SHA-256 hashes. It cannot tell whether a change "
+                        + "was intentional (an edit) or unwanted (damage), so review the results yourself."));
+        getChildren().add(UiUtil.scrollPage(page));
+        ctx.backend().addStatusListener(online -> Platform.runLater(this::refreshBackend));
+    }
 
-        // Recent scans (left column)
+    /** Left column: the most recent scans; double-click opens the history page. */
+    private VBox buildRecentScans(Consumer<Page> navigator) {
         recent.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
         recent.getColumns().add(ScanColumns.date());
         recent.getColumns().add(ScanColumns.type());
@@ -52,7 +67,7 @@ public class DashboardView extends StackPane implements Refreshable {
         Label empty = new Label("No scans yet. Pick a tool on the right to get started.");
         empty.getStyleClass().add("placeholder");
         recent.setPlaceholder(empty);
-        recent.setMinHeight(260);
+        recent.setMinHeight(TABLE_MIN_HEIGHT);
         recent.setOnMouseClicked(e -> {
             if (e.getClickCount() == 2 && recent.getSelectionModel().getSelectedItem() != null) {
                 navigator.accept(Page.HISTORY);
@@ -63,23 +78,25 @@ public class DashboardView extends StackPane implements Refreshable {
         Label viewAll = new Label("View all");
         viewAll.getStyleClass().addAll("link", "small");
         viewAll.setOnMouseClicked(e -> navigator.accept(Page.HISTORY));
-        HBox recentHeader = new HBox(8, UiUtil.sectionTitle("Recent scans"), UiUtil.spacer(), viewAll);
-        recentHeader.setAlignment(Pos.BASELINE_LEFT);
-        VBox left = new VBox(10, recentHeader, recent);
+        HBox header = new HBox(8, UiUtil.sectionTitle("Recent scans"), UiUtil.spacer(), viewAll);
+        header.setAlignment(Pos.BASELINE_LEFT);
+        VBox left = new VBox(10, header, recent);
         HBox.setHgrow(left, Priority.ALWAYS);
         VBox.setVgrow(left, Priority.ALWAYS);
+        return left;
+    }
 
-        // Tools + backend (right column)
-        VBox tools = new VBox(
-                toolRow(Icons.SHIELD, "File integrity", "Detect added, modified and deleted files", () -> navigator.accept(Page.INTEGRITY), false),
-                toolRow(Icons.BACKUP, "Backup verification", "Compare a folder with its backup", () -> navigator.accept(Page.BACKUP), false),
-                toolRow(Icons.COPY, "Duplicate files", "Find identical files and wasted space", () -> navigator.accept(Page.DUPLICATES), true));
-        tools.getStyleClass().add("box");
+    /** Right column: shortcuts to the three tools and the backend status. */
+    private VBox buildSidePanel(Consumer<Page> navigator) {
         Label toolsTitle = new Label("Tools");
         toolsTitle.getStyleClass().add("box-title");
         HBox toolsHeader = new HBox(toolsTitle);
         toolsHeader.getStyleClass().add("box-header");
-        tools.getChildren().add(0, toolsHeader);
+        VBox tools = new VBox(toolsHeader,
+                toolRow(Icons.SHIELD, "File integrity", "Detect added, modified and deleted files", () -> navigator.accept(Page.INTEGRITY), false),
+                toolRow(Icons.BACKUP, "Backup verification", "Compare a folder with its backup", () -> navigator.accept(Page.BACKUP), false),
+                toolRow(Icons.COPY, "Duplicate files", "Find identical files and wasted space", () -> navigator.accept(Page.DUPLICATES), true));
+        tools.getStyleClass().add("box");
 
         backendDot.getStyleClass().add("status-dot");
         HBox statusRow = new HBox(8, backendDot, backendStatus);
@@ -93,22 +110,10 @@ public class DashboardView extends StackPane implements Refreshable {
         VBox backendBox = UiUtil.box("Local backend", null, statusRow, address, backendLogs, openLogs);
 
         VBox right = new VBox(16, tools, backendBox);
-        right.setMinWidth(320);
-        right.setPrefWidth(340);
-        right.setMaxWidth(360);
-
-        HBox columns = new HBox(24, left, right);
-        VBox.setVgrow(columns, Priority.ALWAYS);
-
-        VBox page = new VBox(20,
-                UiUtil.pageHeader("Dashboard", "Overview of monitored folders, recent scans and the local backend."),
-                UiUtil.metricStrip(scansCard, baselinesCard, lastCheckCard, redundantCard),
-                columns,
-                UiUtil.notice("FileGuard identifies differences using SHA-256 hashes. It cannot tell whether a change "
-                        + "was intentional (an edit) or unwanted (damage), so review the results yourself."));
-        getChildren().add(UiUtil.scrollPage(page));
-
-        ctx.backend().addStatusListener(online -> javafx.application.Platform.runLater(this::refreshBackend));
+        right.setMinWidth(SIDE_PANEL_MIN_WIDTH);
+        right.setPrefWidth(SIDE_PANEL_WIDTH);
+        right.setMaxWidth(SIDE_PANEL_MAX_WIDTH);
+        return right;
     }
 
     @Override
@@ -140,25 +145,16 @@ public class DashboardView extends StackPane implements Refreshable {
 
     /** Asks the backend for its log counts in the background, so the page never waits on the network. */
     private void refreshBackend() {
-        Task<Map<String, Integer>> task = new Task<>() {
-            @Override
-            protected Map<String, Integer> call() throws Exception {
-                return ctx.backend().fetchStats();
-            }
-        };
-        task.setOnSucceeded(e -> {
-            Map<String, Integer> s = task.getValue();
-            setBackendOnline(true);
-            backendLogs.setText(s.getOrDefault("total", 0) + " log entries · "
-                    + s.getOrDefault("WARN", 0) + " warnings · " + s.getOrDefault("ERROR", 0) + " errors");
-        });
-        task.setOnFailed(e -> {
-            setBackendOnline(false);
-            backendLogs.setText("Logs are kept in a queue and sent when the backend is back.");
-        });
-        Thread t = new Thread(task, "dashboard-backend-stats");
-        t.setDaemon(true);
-        t.start();
+        UiUtil.background(() -> ctx.backend().fetchStats(),
+                stats -> {
+                    setBackendOnline(true);
+                    backendLogs.setText(stats.getOrDefault("total", 0) + " log entries \u00b7 "
+                            + stats.getOrDefault("WARN", 0) + " warnings \u00b7 " + stats.getOrDefault("ERROR", 0) + " errors");
+                },
+                error -> {
+                    setBackendOnline(false);
+                    backendLogs.setText("Logs are kept in a queue and sent when the backend is back.");
+                });
     }
 
     private void setBackendOnline(boolean online) {

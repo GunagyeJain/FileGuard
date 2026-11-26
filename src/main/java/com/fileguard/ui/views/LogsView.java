@@ -11,7 +11,6 @@ import com.fileguard.ui.components.StatusBadge;
 import javafx.beans.property.ReadOnlyObjectWrapper;
 import javafx.beans.property.ReadOnlyStringWrapper;
 import javafx.collections.FXCollections;
-import javafx.concurrent.Task;
 import javafx.geometry.Pos;
 import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
@@ -35,6 +34,9 @@ import java.util.Map;
 public class LogsView extends StackPane implements Refreshable {
 
     private static final int LIMIT = 500;
+    private static final String ALL_LEVELS = "All levels";
+
+    private long refreshRequest;
 
     private final AppContext ctx;
     private final ComboBox<String> levelFilter = new ComboBox<>();
@@ -49,8 +51,8 @@ public class LogsView extends StackPane implements Refreshable {
     public LogsView(AppContext ctx) {
         this.ctx = ctx;
 
-        levelFilter.getItems().addAll("All levels", "INFO", "WARN", "ERROR");
-        levelFilter.setValue("All levels");
+        levelFilter.getItems().addAll(ALL_LEVELS, "INFO", "WARN", "ERROR");
+        levelFilter.setValue(ALL_LEVELS);
         levelFilter.setOnAction(e -> refresh());
 
         Button refreshButton = new Button("Refresh", Icons.create(Icons.REFRESH, 14));
@@ -135,41 +137,49 @@ public class LogsView extends StackPane implements Refreshable {
         return col;
     }
 
+    /** What one refresh loads from the backend. */
+    private record LogsData(List<LogEntry> logs, Map<String, Integer> stats) {
+    }
+
     /** Loads logs and counts from the backend on a background thread. */
     @Override
     public void refresh() {
-        LogLevel filter = "All levels".equals(levelFilter.getValue()) ? null : LogLevel.valueOf(levelFilter.getValue());
-        status.setText("Loading…");
-        Task<Object[]> task = new Task<>() {
-            @Override
-            protected Object[] call() throws Exception {
-                return new Object[]{ctx.backend().fetchLogs(LIMIT, filter), ctx.backend().fetchStats()};
-            }
-        };
-        task.setOnSucceeded(e -> {
-            @SuppressWarnings("unchecked")
-            List<LogEntry> logs = (List<LogEntry>) task.getValue()[0];
-            @SuppressWarnings("unchecked")
-            Map<String, Integer> stats = (Map<String, Integer>) task.getValue()[1];
-            placeholder.setText("No log entries yet. Run a scan and its events will appear here.");
-            table.setItems(FXCollections.observableArrayList(logs));
-            total.setValue(String.valueOf(stats.getOrDefault("total", 0)));
-            info.setValue(String.valueOf(stats.getOrDefault("INFO", 0)));
-            warn.setValue(String.valueOf(stats.getOrDefault("WARN", 0)));
-            error.setValue(String.valueOf(stats.getOrDefault("ERROR", 0)));
-            status.setText("Showing " + logs.size() + (logs.size() == LIMIT ? " most recent" : "") + " entries");
-        });
-        task.setOnFailed(e -> {
-            table.setItems(FXCollections.observableArrayList());
-            placeholder.setText("The backend is not reachable at " + ctx.backend().baseUri()
-                    + ". New events are queued and will be sent when it is running again.");
-            status.setText("Backend offline");
-            total.reset();
-            info.reset();
-            warn.reset();
-            error.reset();
-        });
-        start(task);
+        LogLevel filter = ALL_LEVELS.equals(levelFilter.getValue()) ? null : LogLevel.valueOf(levelFilter.getValue());
+        status.setText("Loading\u2026");
+        long request = ++refreshRequest; // a slower, older answer must not overwrite a newer one
+        UiUtil.background(() -> new LogsData(ctx.backend().fetchLogs(LIMIT, filter), ctx.backend().fetchStats()),
+                data -> {
+                    if (request == refreshRequest) {
+                        showLogs(data);
+                    }
+                },
+                failure -> {
+                    if (request == refreshRequest) {
+                        showOffline();
+                    }
+                });
+    }
+
+    private void showLogs(LogsData data) {
+        placeholder.setText("No log entries yet. Run a scan and its events will appear here.");
+        table.setItems(FXCollections.observableArrayList(data.logs()));
+        total.setValue(String.valueOf(data.stats().getOrDefault("total", 0)));
+        info.setValue(String.valueOf(data.stats().getOrDefault("INFO", 0)));
+        warn.setValue(String.valueOf(data.stats().getOrDefault("WARN", 0)));
+        error.setValue(String.valueOf(data.stats().getOrDefault("ERROR", 0)));
+        int shown = data.logs().size();
+        status.setText("Showing " + shown + (shown == LIMIT ? " most recent" : "") + " entries");
+    }
+
+    private void showOffline() {
+        table.setItems(FXCollections.observableArrayList());
+        placeholder.setText("The backend is not reachable at " + ctx.backend().baseUri()
+                + ". New events are queued and will be sent when it is running again.");
+        status.setText("Backend offline");
+        total.reset();
+        info.reset();
+        warn.reset();
+        error.reset();
     }
 
     private void clear() {
@@ -177,20 +187,8 @@ public class LogsView extends StackPane implements Refreshable {
                 "This permanently deletes all log entries stored by the backend. Scan history is not affected.")) {
             return;
         }
-        Task<Integer> task = new Task<>() {
-            @Override
-            protected Integer call() throws Exception {
-                return ctx.backend().clearLogs();
-            }
-        };
-        task.setOnSucceeded(e -> refresh());
-        task.setOnFailed(e -> UiUtil.showError(ctx, "Could not clear the log", UiUtil.friendlyMessage(task.getException())));
-        start(task);
-    }
-
-    private static void start(Task<?> task) {
-        Thread t = new Thread(task, "fileguard-logs");
-        t.setDaemon(true);
-        t.start();
+        UiUtil.background(() -> ctx.backend().clearLogs(),
+                deleted -> refresh(),
+                failure -> UiUtil.showError(ctx, "Could not clear the log", UiUtil.friendlyMessage(failure)));
     }
 }

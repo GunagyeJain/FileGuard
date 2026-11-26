@@ -17,7 +17,7 @@ $demo    = Join-Path $root 'demo-data'
 $project = Join-Path $demo 'Project'
 $backup  = Join-Path $demo 'Project-Backup'
 $large   = Join-Path $demo 'Large-Folder'
-$images  = Join-Path $root 'docs\screenshots'
+$images  = Join-Path $PSScriptRoot 'sample-images'
 
 function Write-DemoFile([string]$base, [string]$relative, [string]$text) {
     $path = Join-Path $base $relative
@@ -91,9 +91,9 @@ printing,250
 snacks,400
 "@
 
-# Real images (the app's own screenshots) so they can be opened during the demo.
+# Real images (fixed copies in demo\sample-images) so they can be opened during the demo.
 New-Item -ItemType Directory -Force -Path (Join-Path $project 'photos') | Out-Null
-Copy-Item (Join-Path $images 'dashboard-light.png') (Join-Path $project 'photos\dashboard.png')
+Copy-Item (Join-Path $images 'dashboard.png')       (Join-Path $project 'photos\dashboard.png')
 Copy-Item (Join-Path $images 'history.png')         (Join-Path $project 'photos\history.png')
 Copy-Item (Join-Path $images 'backup.png')          (Join-Path $project 'photos\backup.png')
 

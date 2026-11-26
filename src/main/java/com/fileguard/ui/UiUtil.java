@@ -1,6 +1,7 @@
 package com.fileguard.ui;
 
 import com.fileguard.core.ReportExporter;
+import com.fileguard.model.LogLevel;
 import com.fileguard.model.ScanReport;
 import com.fileguard.ui.components.ScanProgressPanel;
 import javafx.geometry.Pos;
@@ -89,13 +90,6 @@ public final class UiUtil {
         return flash(text, "flash");
     }
 
-    /** Blue informational note. */
-    public static HBox infoNotice(String text) {
-        HBox box = flash(text, "flash");
-        box.getStyleClass().add("flash-info");
-        return box;
-    }
-
     private static HBox flash(String text, String styleClass) {
         Label label = new Label(text);
         label.setWrapText(true);
@@ -168,6 +162,30 @@ public final class UiUtil {
 
     // ------------------------------------------------------------ background
 
+    /** Work that may block (database, network) and therefore must not run on the UI thread. */
+    @FunctionalInterface
+    public interface BackgroundWork<T> {
+        T run() throws Exception;
+    }
+
+    /**
+     * Runs {@code work} on a background thread and then calls {@code onSuccess} or
+     * {@code onError} back on the JavaFX thread, so pages never freeze while waiting.
+     */
+    public static <T> void background(BackgroundWork<T> work, Consumer<T> onSuccess, Consumer<Throwable> onError) {
+        javafx.concurrent.Task<T> task = new javafx.concurrent.Task<>() {
+            @Override
+            protected T call() throws Exception {
+                return work.run();
+            }
+        };
+        task.setOnSucceeded(e -> onSuccess.accept(task.getValue()));
+        task.setOnFailed(e -> onError.accept(task.getException()));
+        Thread thread = new Thread(task, "fileguard-background");
+        thread.setDaemon(true);
+        thread.start();
+    }
+
     /**
      * Starts a scan in the background, shows its progress in the panel and calls
      * {@code onSuccess} on the UI thread when it completes. The given controls are
@@ -194,7 +212,7 @@ public final class UiUtil {
         task.setOnCancelled(e -> {
             enableControls.run();
             panel.finish("cancelled", "Scan cancelled",
-                    "The scan was stopped. Partial results were discarded and a 'Cancelled' entry was added to the history.");
+                    "The scan was stopped before it finished. No results were kept for this run.");
         });
         task.setOnFailed(e -> {
             enableControls.run();
@@ -225,8 +243,11 @@ public final class UiUtil {
         }
         try {
             ReportExporter.exportCsv(report, file.toPath());
+            ctx.backend().log(LogLevel.INFO, "EXPORT", report.type().label() + " report exported ("
+                    + report.items().size() + " rows)", file.getAbsolutePath());
             showInfo(ctx, "Report exported", "Saved " + report.items().size() + " rows to:\n" + file.getAbsolutePath());
         } catch (IOException ex) {
+            ctx.backend().error("EXPORT", "Report export failed: " + ex.getMessage(), file.getAbsolutePath());
             showError(ctx, "Export failed", "Could not write the file: " + ex.getMessage());
         }
     }

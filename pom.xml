@@ -62,6 +62,37 @@
                 <version>3.3.1</version>
             </plugin>
 
+            <!-- Test coverage report: after "mvnw test" open target/site/jacoco/index.html.
+                 JavaFX screens (ui package) and the two entry points are excluded because
+                 they are checked with the manual UI test plan in docs/TESTING.md. -->
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <version>0.8.12</version>
+                <configuration>
+                    <excludes>
+                        <exclude>com/fileguard/ui/**</exclude>
+                        <exclude>com/fileguard/Launcher*</exclude>
+                        <exclude>com/fileguard/FileGuardApp*</exclude>
+                    </excludes>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>prepare-agent</id>
+                        <goals>
+                            <goal>prepare-agent</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>report</id>
+                        <phase>test</phase>
+                        <goals>
+                            <goal>report</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+
             <!-- Packaging: the app jar plus all runtime libraries are collected in target/app,
                  which packaging/build-windows-app.bat turns into FileGuard.exe with jpackage. -->
             <plugin>

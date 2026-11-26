@@ -23,7 +23,7 @@ public final class ReportExporter {
 
     public static void exportCsv(ScanReport report, Path target) throws IOException {
         try (BufferedWriter out = Files.newBufferedWriter(target, StandardCharsets.UTF_8)) {
-            out.write('﻿'); // byte-order mark so Excel detects UTF-8 correctly
+            out.write(UTF8_BOM); // byte-order mark so Excel detects UTF-8 correctly
 
             // Short header block describing the scan.
             writeRow(out, "FileGuard report");
@@ -58,16 +58,21 @@ public final class ReportExporter {
         out.newLine();
     }
 
+    private static final char UTF8_BOM = 0xFEFF;
+
+    /** Characters that make Excel/LibreOffice treat a cell as a formula. */
+    private static final String FORMULA_START = "=+-@\t\r";
+
     /**
      * Quotes a value if it contains a comma, quote or line break (RFC 4180).
-     * Values starting with '=', '+' or '@' get a leading apostrophe so that
-     * spreadsheet programs do not run a file name as a formula.
+     * Values starting with a formula character get a leading apostrophe so that
+     * spreadsheet programs do not run a file name as a formula (CSV injection).
      */
     static String escape(String value) {
         if (value == null) {
             return "";
         }
-        if (!value.isEmpty() && "=+@".indexOf(value.charAt(0)) >= 0) {
+        if (!value.isEmpty() && FORMULA_START.indexOf(value.charAt(0)) >= 0) {
             value = "'" + value;
         }
         if (value.contains(",") || value.contains("\"") || value.contains("\n") || value.contains("\r")) {

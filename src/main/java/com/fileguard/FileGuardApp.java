@@ -2,6 +2,7 @@ package com.fileguard;
 
 import com.fileguard.client.BackendClient;
 import com.fileguard.db.Database;
+import com.fileguard.model.LogLevel;
 import com.fileguard.server.BackendServer;
 import com.fileguard.service.ScanService;
 import com.fileguard.ui.AppContext;
@@ -21,12 +22,18 @@ import java.io.InputStream;
  *
  * Start-up order:
  *  1. open the local SQLite database (baselines and scan history),
- *  2. connect to the backend on localhost; if none is running, start one inside this process,
- *  3. show the main window.
+ *  2. show the main window,
+ *  3. in the background: connect to the backend on localhost, or start one inside this
+ *     process if none is running. Logs written before that finishes are queued.
  */
 public class FileGuardApp extends Application {
 
-    private BackendServer embeddedBackend;
+    private static final double WINDOW_WIDTH = 1280;
+    private static final double WINDOW_HEIGHT = 800;
+    private static final double MIN_WIDTH = 1040;
+    private static final double MIN_HEIGHT = 660;
+
+    private volatile BackendServer embeddedBackend;
     private BackendClient backend;
 
     @Override
@@ -43,62 +50,60 @@ public class FileGuardApp extends Application {
             return;
         }
 
-        backend = connectBackend();
-        backend.info("APP", "FileGuard started" + (embeddedBackend != null ? " (backend started by the app)" : ""));
+        int port = Integer.getInteger("fileguard.backend.port", BackendServer.DEFAULT_PORT);
+        backend = BackendClient.forPort(port);
+        backend.info("APP", AppInfo.NAME + " " + AppInfo.VERSION + " started"); // queued until connected
 
         ThemeManager themeManager = new ThemeManager();
         themeManager.themeProperty().addListener((obs, old, now) ->
                 backend.info("SETTINGS", "Theme changed to " + now.name().toLowerCase()));
         AppContext ctx = new AppContext(new ScanService(database, backend), database, themeManager,
                 getHostServices(), backend);
-        MainWindow mainWindow = new MainWindow(ctx);
 
-        Scene scene = new Scene(mainWindow, 1280, 800);
+        Scene scene = new Scene(new MainWindow(ctx), WINDOW_WIDTH, WINDOW_HEIGHT);
         themeManager.register(scene);
-
-        stage.setTitle("FileGuard");
-        stage.setMinWidth(1040);
-        stage.setMinHeight(660);
-        try (InputStream icon = getClass().getResourceAsStream("/com/fileguard/icon.png")) {
-            if (icon != null) {
-                stage.getIcons().add(new Image(icon));
-            }
-        } catch (Exception ignored) {
-            // The window icon is optional.
-        }
+        stage.setTitle(AppInfo.NAME);
+        stage.setMinWidth(MIN_WIDTH);
+        stage.setMinHeight(MIN_HEIGHT);
+        loadIcon(stage);
         stage.setScene(scene);
         stage.show();
+
+        Thread connector = new Thread(() -> connectBackend(port), "fileguard-backend-connect");
+        connector.setDaemon(true);
+        connector.start();
     }
 
     /**
      * Uses an already running backend (for example "FileGuard Backend.exe") if there is one,
-     * otherwise starts the backend inside the app. If neither works, the app still runs
-     * and queues its logs until a backend becomes available.
+     * otherwise starts the backend inside the app. If neither works, the app still runs and
+     * keeps its logs queued until a backend becomes available. Runs on a background thread.
      */
-    private BackendClient connectBackend() {
-        int port = Integer.getInteger("fileguard.backend.port", BackendServer.DEFAULT_PORT);
-        BackendClient client = BackendClient.forPort(port);
-        if (!client.checkHealth()) {
+    private void connectBackend(int port) {
+        if (!backend.checkHealth()) {
             try {
                 embeddedBackend = BackendServer.start(port, BackendServer.defaultDbFile());
-                client.checkHealth();
             } catch (Exception e) {
                 System.err.println("FileGuard backend could not be started on port " + port + ": " + e.getMessage());
             }
         }
-        client.startMonitoring();
-        return client;
+        backend.startMonitoring(); // first health check runs immediately and sends queued logs
+    }
+
+    private void loadIcon(Stage stage) {
+        try (InputStream icon = getClass().getResourceAsStream("/com/fileguard/icon.png")) {
+            if (icon != null) {
+                stage.getIcons().add(new Image(icon));
+            }
+        } catch (Exception e) {
+            System.err.println("Window icon could not be loaded: " + e.getMessage());
+        }
     }
 
     @Override
     public void stop() {
         if (backend != null) {
-            backend.info("APP", "FileGuard closed");
-            try {
-                Thread.sleep(300); // give the last async log a moment to reach the backend
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
+            backend.logAndWait(LogLevel.INFO, "APP", AppInfo.NAME + " closed");
             backend.close();
         }
         if (embeddedBackend != null) {

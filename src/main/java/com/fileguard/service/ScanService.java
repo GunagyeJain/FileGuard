@@ -65,10 +65,6 @@ public class ScanService {
         this.logger = logger;
     }
 
-    public ActivityLogger logger() {
-        return logger;
-    }
-
     // ------------------------------------------------------------------ scans
 
     /** Hashes every file in the folder and stores the result as the folder's baseline. */
@@ -103,14 +99,14 @@ public class ScanService {
             progress.checkCancelled();
 
             // Files that exist but could not be read must not be reported as "deleted".
-            Set<String> unreadable = combine(listing.skipped(), hashed.skipped()).stream()
-                    .map(ResultItem::path).collect(Collectors.toSet());
+            List<ResultItem> skipped = combine(listing.skipped(), hashed.skipped());
+            Set<String> unreadable = skipped.stream().map(ResultItem::path).collect(Collectors.toSet());
             List<ResultItem> items = new ArrayList<>(IntegrityChecker.compare(before, hashed.hashed(), unreadable));
-            items.addAll(combine(listing.skipped(), hashed.skipped()));
+            items.addAll(skipped);
 
-            long added = items.stream().filter(i -> i.status() == ResultStatus.ADDED).count();
-            long modified = items.stream().filter(i -> i.status() == ResultStatus.MODIFIED).count();
-            long deleted = items.stream().filter(i -> i.status() == ResultStatus.DELETED).count();
+            long added = count(items, ResultStatus.ADDED);
+            long modified = count(items, ResultStatus.MODIFIED);
+            long deleted = count(items, ResultStatus.DELETED);
             long unchanged = hashed.hashed().size() - added - modified;
             String summary = added + " added, " + modified + " modified, " + deleted + " deleted, "
                     + unchanged + " unchanged (baseline from " + Format.dateTime(baseline.createdAt()) + ")";
@@ -124,11 +120,9 @@ public class ScanService {
         String backupKey = folderKey(backup);
         return execute(ScanType.BACKUP, originalKey, backupKey, progress, () -> {
             BackupVerifier.Result result = new BackupVerifier().verify(Path.of(originalKey), Path.of(backupKey), progress);
-            long missing = result.items().stream().filter(i -> i.status() == ResultStatus.MISSING).count();
-            long different = result.items().stream().filter(i -> i.status() == ResultStatus.DIFFERENT).count();
-            long extra = result.items().stream().filter(i -> i.status() == ResultStatus.EXTRA).count();
-            String summary = result.matched() + " matching, " + missing + " missing, "
-                    + different + " different, " + extra + " only in backup";
+            String summary = result.matched() + " matching, " + count(result.items(), ResultStatus.MISSING) + " missing, "
+                    + count(result.items(), ResultStatus.DIFFERENT) + " different, "
+                    + count(result.items(), ResultStatus.EXTRA) + " only in backup";
             return new Outcome(result.filesExamined(), result.bytesHashed(), 0, summary, result.items());
         });
     }
@@ -204,7 +198,12 @@ public class ScanService {
         } catch (CancellationException e) {
             ScanReport cancelled = new ScanReport(0, type, folder, secondFolder, startedAt, elapsedMs(startNanos),
                     ScanStatus.CANCELLED, 0, 0, 0, 0, "Cancelled by user before finishing", List.of());
-            historyDao.save(cancelled);
+            try {
+                historyDao.save(cancelled);
+            } catch (SQLException saveError) {
+                // Keep reporting the cancellation; failing to record it must not turn it into an error.
+                logger.log(LogLevel.ERROR, "SCAN", "Could not record cancelled scan: " + saveError.getMessage(), target);
+            }
             logger.log(LogLevel.WARN, "SCAN", type.label() + " cancelled by user", target);
             throw e;
         } catch (IOException | SQLException | RuntimeException e) {
@@ -226,6 +225,10 @@ public class ScanService {
         } catch (IOException e) {
             throw new IOException("Folder not found or not accessible: " + folder, e);
         }
+    }
+
+    private static long count(List<ResultItem> items, ResultStatus status) {
+        return items.stream().filter(i -> i.status() == status).count();
     }
 
     private static List<ResultItem> combine(List<ResultItem> a, List<ResultItem> b) {

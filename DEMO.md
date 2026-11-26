@@ -69,7 +69,7 @@ The expected numbers below come from actually running these steps.
 1. Click **Duplicate files**.
 2. Choose `demo-data\Project` and click **Find duplicates**.
 
-**Expected:** **3 duplicate groups, 3 redundant copies, 112.4 KB redundant**
+**Expected:** **3 duplicate groups, 3 redundant copies, 125.4 KB redundant**
 - `photos/dashboard.png` = `downloads/dashboard (1).png`
 - `photos/history.png` = `downloads/history-copy.png`
 - `notes/todo.txt` = `notes/todo-copy.txt`
@@ -86,7 +86,7 @@ The expected numbers below come from actually running these steps.
 2. **Browse** → choose `demo-data\Project`.
 3. Click **Save baseline**.
 
-**Expected:** "Baseline saved with 15 files (278.9 KB)". The line under the folder now shows the baseline date and file count.
+**Expected:** "Baseline saved with 15 files (308.3 KB)". The line under the folder now shows the baseline date and file count.
 
 **Say:** "A baseline is a snapshot: for every file we store its relative path, size, modification time and SHA-256 hash in the database."
 
@@ -180,6 +180,8 @@ Switch between **Light** and **Dark** theme. Restart the app to show that the ch
 
 ## Likely viva questions
 
+More detail, a "where is it in the code" map and OOP explanations: [docs/VIVA.md](docs/VIVA.md).
+
 | Question | Short answer |
 |---|---|
 | Why SHA-256? | A cryptographic hash: any change to the content gives a completely different hash, and two different files having the same hash is practically impossible. It's built into Java (`MessageDigest`). |
@@ -194,7 +196,7 @@ Switch between **Light** and **Dark** theme. Restart the app to show that the ch
 | What is the backend? | A local REST server (`BackendServer`) on `127.0.0.1:8765`, built with the JDK's `com.sun.net.httpserver`. Endpoints: `GET/POST/DELETE /api/logs`, `GET /api/stats`, `GET /api/health`. It stores logs in `backend.db` through `LogRepository` (JDBC, prepared statements). |
 | How does the app talk to it? | `BackendClient` uses `java.net.http.HttpClient` to send JSON asynchronously. A health check every 5 seconds updates the online/offline status and flushes queued logs. |
 | Is the backend secure? | It only listens on 127.0.0.1 (not reachable from the network), validates every field, limits request size to 16 KB, and returns generic error messages without internal details. |
-| What did you test? | 30 JUnit tests: SHA-256 known values, large files, added/modified/deleted detection, backup and duplicate logic, cancellation, data surviving a restart, CSV export, the JSON parser, every REST endpoint (including invalid input), and the client's offline queue. Run them with `mvnw test`. |
+| What did you test? | 36 JUnit tests (88% line coverage of non-UI code): SHA-256 known values, large files, added/modified/deleted detection, backup and duplicate logic, cancellation, data surviving a restart, CSV export, the JSON parser, every REST endpoint (including invalid input), and the client's offline queue. Run them with `mvnw test`. |
 
 ---
 

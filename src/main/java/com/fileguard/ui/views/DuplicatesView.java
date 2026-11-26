@@ -52,7 +52,6 @@ public class DuplicatesView extends StackPane {
         hint.setWrapText(true);
 
         exportButton.setGraphic(Icons.create(Icons.DOWNLOAD, 14));
-        exportButton.getStyleClass().add("button-secondary");
         exportButton.setDisable(true);
         exportButton.setOnAction(e -> UiUtil.exportReport(ctx, getScene().getWindow(), currentReport));
         summary.getStyleClass().add("muted");

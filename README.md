@@ -6,6 +6,8 @@ FileGuard is a Windows desktop app for checking file integrity, verifying backup
 
 ![FileGuard dashboard](docs/screenshots/dashboard-light.png)
 
+**Project documents:** [Design & diagrams](docs/DESIGN.md) · [Testing](docs/TESTING.md) · [Demo script](DEMO.md) · [Viva guide](docs/VIVA.md) · [Rubric evidence](docs/RUBRIC.md)
+
 ---
 
 ## Run it (no commands)
@@ -42,7 +44,7 @@ Unreadable files (permission denied, locked, deleted during the scan) never stop
 - **SQLite** via **sqlite-jdbc** (JDBC with prepared statements)
 - **Java Security API**: `MessageDigest` for SHA-256
 - **Backend:** the JDK's built-in HTTP server (`com.sun.net.httpserver`) with a hand-written JSON helper; the app talks to it with the built-in `java.net.http.HttpClient`
-- **Maven** (through the Maven wrapper) and **JUnit 5**
+- **Maven** (through the Maven wrapper), **JUnit 5** and **JaCoCo** (test coverage)
 - **jpackage** (part of the JDK) to build `FileGuard.exe`
 
 No web frameworks, cloud services or external database servers.
@@ -88,7 +90,7 @@ To run only the backend, run `com.fileguard.server.BackendServer`.
 
 ```powershell
 .\mvnw.cmd javafx:run       # start the app
-.\mvnw.cmd test             # run the 30 unit and integration tests
+.\mvnw.cmd test             # run the 36 unit and integration tests (+ coverage report)
 ```
 
 ## Project folder structure
@@ -102,8 +104,13 @@ FileGuard/
 │   ├── build-windows-app.bat        double-click: builds dist\FileGuard\FileGuard.exe
 │   ├── backend-launcher.properties  second launcher: FileGuard Backend.exe
 │   └── fileguard.ico                app icon
-├── demo/                            setup-demo.ps1, simulate-changes.ps1
-├── docs/screenshots/                README images
+├── demo/                            setup-demo.ps1, simulate-changes.ps1, sample-images/
+├── docs/
+│   ├── DESIGN.md                    problem, objectives, architecture, UML and ER diagrams
+│   ├── TESTING.md                   test cases, coverage, UI test plan, validation
+│   ├── VIVA.md                      code map and viva preparation
+│   ├── RUBRIC.md                    evidence for each evaluation criterion
+│   └── screenshots/                 README images
 └── src/
     ├── main/java/com/fileguard/
     │   ├── Launcher.java            main() entry point
@@ -166,6 +173,6 @@ This creates `demo-data\` with an original folder, a backup that has known probl
 
 ## What to commit to GitHub
 
-**Include:** `pom.xml`, `mvnw*`, `.mvn/`, `src/`, `packaging/`, `demo/`, `docs/screenshots/`, `README.md`, `DEMO.md`, `.gitignore`, `.gitattributes`.
+**Include:** `pom.xml`, `mvnw*`, `.mvn/`, `src/`, `packaging/`, `demo/`, `docs/`, `README.md`, `DEMO.md`, `.gitignore`, `.gitattributes`.
 
 **Don't include** (already in `.gitignore`): `target/`, `dist/` (the built app; share the zip instead, for example as a GitHub Release), `.idea/`, `*.iml`, `*.db`, `demo-data/`, `demo-results/`, exported `*.csv` files.

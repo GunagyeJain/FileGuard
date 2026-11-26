@@ -18,6 +18,8 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 
+import java.util.List;
+
 /** Lists previous scans stored in SQLite and shows the results of the selected one. */
 public class HistoryView extends StackPane implements Refreshable {
 
@@ -49,11 +51,9 @@ public class HistoryView extends StackPane implements Refreshable {
 
         Button refreshButton = new Button("Refresh");
         refreshButton.setGraphic(Icons.create(Icons.REFRESH, 14));
-        refreshButton.getStyleClass().add("button-secondary");
         refreshButton.setOnAction(e -> refresh());
 
         exportButton.setGraphic(Icons.create(Icons.DOWNLOAD, 14));
-        exportButton.getStyleClass().add("button-secondary");
         exportButton.setDisable(true);
         exportButton.setOnAction(e -> UiUtil.exportReport(ctx, getScene().getWindow(), selected));
 
@@ -105,17 +105,22 @@ public class HistoryView extends StackPane implements Refreshable {
             exportButton.setDisable(true);
             detailTitle.setText("Scan details");
             detailSummary.setText("Select a scan above to see its results.");
-            results.show(java.util.List.of(), "Select a scan above to see its results.");
+            results.show(List.of(), "Select a scan above to see its results.");
             return;
         }
-        try {
-            selected = ctx.scanService().loadScan(scan.id()).orElse(scan);
-            exportButton.setDisable(false);
-            detailTitle.setText(selected.type().label() + " · " + Format.dateTime(selected.startedAt()));
-            detailSummary.setText(selected.summary());
-            results.show(selected.items(), "This scan has no detailed results to show.");
-        } catch (Exception e) {
-            UiUtil.showError(ctx, "Could not load scan results", UiUtil.friendlyMessage(e));
-        }
+        // A scan can have thousands of result rows, so they are loaded in the background.
+        detailTitle.setText(scan.type().label() + " · " + Format.dateTime(scan.startedAt()));
+        detailSummary.setText("Loading results…");
+        UiUtil.background(() -> ctx.scanService().loadScan(scan.id()).orElse(scan),
+                loaded -> {
+                    if (scans.getSelectionModel().getSelectedItem() != scan) {
+                        return; // the user already selected another scan
+                    }
+                    selected = loaded;
+                    exportButton.setDisable(false);
+                    detailSummary.setText(loaded.summary());
+                    results.show(loaded.items(), "This scan has no detailed results to show.");
+                },
+                error -> UiUtil.showError(ctx, "Could not load scan results", UiUtil.friendlyMessage(error)));
     }
 }

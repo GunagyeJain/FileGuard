@@ -47,4 +47,14 @@ class JsonTest {
         assertThrows(IllegalArgumentException.class, () -> Json.parse("\"unterminated"));
         assertThrows(IllegalArgumentException.class, () -> Json.parseObject("[1,2]"));
     }
+
+    @Test
+    void limitsNestingDepth() {
+        String ok = "[".repeat(Json.MAX_DEPTH) + "]".repeat(Json.MAX_DEPTH);
+        Json.parse(ok); // exactly at the limit is fine
+        String tooDeep = "[".repeat(Json.MAX_DEPTH + 1) + "]".repeat(Json.MAX_DEPTH + 1);
+        assertThrows(IllegalArgumentException.class, () -> Json.parse(tooDeep));
+        // Siblings do not add depth: many objects side by side are fine.
+        Json.parse("[" + "{\"a\":[1]},".repeat(100) + "{}]");
+    }
 }

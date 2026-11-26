@@ -5,8 +5,10 @@ import com.fileguard.model.ResultItem;
 import com.fileguard.model.ResultStatus;
 
 import java.io.IOException;
+import java.nio.file.AccessDeniedException;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.NotDirectoryException;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
@@ -132,12 +134,12 @@ public class FolderScanner {
     }
 
     private static String describe(IOException e) {
-        String name = e.getClass().getSimpleName().replace("Exception", "");
-        return switch (name) {
-            case "AccessDenied" -> "access denied";
-            case "NoSuchFile" -> "file no longer exists";
-            case "FileSystem" -> e.getMessage() != null ? e.getMessage() : "file system error";
-            default -> e.getMessage() != null ? e.getMessage() : name;
-        };
+        if (e instanceof AccessDeniedException) {
+            return "access denied";
+        }
+        if (e instanceof NoSuchFileException) {
+            return "file no longer exists";
+        }
+        return e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
     }
 }

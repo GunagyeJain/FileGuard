@@ -12,6 +12,7 @@ import com.fileguard.ui.components.FolderField;
 import com.fileguard.ui.components.ResultsTable;
 import com.fileguard.ui.components.ScanProgressPanel;
 import com.fileguard.ui.components.StatCard;
+import javafx.animation.PauseTransition;
 import javafx.geometry.Pos;
 import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
@@ -21,8 +22,12 @@ import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
+import javafx.util.Duration;
 
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.sql.SQLException;
 import java.util.Optional;
 
 /** Page for creating baselines and checking folders against them. */
@@ -43,14 +48,34 @@ public class IntegrityView extends StackPane implements Refreshable {
     private final Label summary = new Label("No check has been run in this session.");
     private final ResultsTable table = new ResultsTable(false,
             "Choose a folder, save a baseline, and run an integrity check later to see what changed.");
+    private static final double COMBO_WIDTH = 240;
+    private static final double TABLE_MIN_HEIGHT = 220;
+
+    private final PauseTransition statusDelay = new PauseTransition(Duration.millis(300));
+    private long statusRequest;
     private ScanReport currentReport;
 
     public IntegrityView(AppContext ctx) {
         this.ctx = ctx;
+        // Wait until the user stops typing for a moment before looking up the baseline.
+        statusDelay.setOnFinished(e -> updateBaselineStatus());
+        folder.textProperty().addListener((obs, o, n) -> statusDelay.playFromStart());
 
-        // Folder selection card
+        table.setMinHeight(TABLE_MIN_HEIGHT);
+        VBox.setVgrow(table, Priority.ALWAYS);
+        VBox page = new VBox(18,
+                UiUtil.pageHeader("File integrity",
+                        "Save a baseline of a folder's files, then check it later for added, modified and deleted files."),
+                buildFolderCard(), progress, UiUtil.metricStrip(added, modified, deleted, unchanged),
+                UiUtil.notice(ReportExporter.DISCLAIMER + " A \"modified\" file simply has different content than when the baseline was saved."),
+                buildResultsHeader(), table);
+        getChildren().add(UiUtil.scrollPage(page));
+        updateBaselineStatus();
+    }
+
+    private VBox buildFolderCard() {
         savedBaselines.setPromptText("Saved baselines");
-        savedBaselines.setPrefWidth(240);
+        savedBaselines.setPrefWidth(COMBO_WIDTH);
         savedBaselines.setCellFactory(l -> new BaselineCell());
         savedBaselines.setButtonCell(new BaselineCell());
         savedBaselines.setOnAction(e -> {
@@ -65,10 +90,7 @@ public class IntegrityView extends StackPane implements Refreshable {
 
         baselineStatus.getStyleClass().add("muted");
         baselineStatus.setWrapText(true);
-        folder.textProperty().addListener((obs, o, n) -> updateBaselineStatus());
-
         createButton.setGraphic(Icons.create(Icons.SAVE, 14));
-        createButton.getStyleClass().add("button-secondary");
         createButton.setOnAction(e -> createBaseline());
         checkButton.setGraphic(Icons.create(Icons.PLAY, 14));
         checkButton.getStyleClass().add("button-primary");
@@ -76,29 +98,17 @@ public class IntegrityView extends StackPane implements Refreshable {
         HBox actions = new HBox(10, baselineStatus, UiUtil.spacer(), createButton, checkButton);
         actions.setAlignment(Pos.CENTER_LEFT);
         HBox.setHgrow(baselineStatus, Priority.SOMETIMES);
+        return UiUtil.card("Monitored folder", folderRow, actions);
+    }
 
-        VBox folderCard = UiUtil.card("Monitored folder", folderRow, actions);
-
-        // Results
-        HBox cards = UiUtil.metricStrip(added, modified, deleted, unchanged);
+    private HBox buildResultsHeader() {
         exportButton.setGraphic(Icons.create(Icons.DOWNLOAD, 14));
-        exportButton.getStyleClass().add("button-secondary");
         exportButton.setDisable(true);
         exportButton.setOnAction(e -> UiUtil.exportReport(ctx, getScene().getWindow(), currentReport));
         summary.getStyleClass().add("muted");
-        HBox resultsHeader = new HBox(12, UiUtil.sectionTitle("Results"), summary, UiUtil.spacer(), exportButton);
-        resultsHeader.setAlignment(Pos.CENTER_LEFT);
-        table.setMinHeight(220);
-        VBox.setVgrow(table, Priority.ALWAYS);
-
-        VBox page = new VBox(18,
-                UiUtil.pageHeader("File integrity",
-                        "Save a baseline of a folder's files, then check it later for added, modified and deleted files."),
-                folderCard, progress, cards,
-                UiUtil.notice(ReportExporter.DISCLAIMER + " A \"modified\" file simply has different content than when the baseline was saved."),
-                resultsHeader, table);
-        getChildren().add(UiUtil.scrollPage(page));
-        updateBaselineStatus();
+        HBox header = new HBox(12, UiUtil.sectionTitle("Results"), summary, UiUtil.spacer(), exportButton);
+        header.setAlignment(Pos.CENTER_LEFT);
+        return header;
     }
 
     @Override
@@ -113,24 +123,35 @@ public class IntegrityView extends StackPane implements Refreshable {
         updateBaselineStatus();
     }
 
+    /** Shows whether the chosen folder has a baseline. The lookup runs in the background. */
     private void updateBaselineStatus() {
         Path path = folder.getPath();
         if (path == null) {
             baselineStatus.setText("No folder selected.");
             return;
         }
-        if (!path.toFile().isDirectory()) {
-            baselineStatus.setText("This folder does not exist.");
-            return;
+        long request = ++statusRequest; // ignore answers to older lookups
+        UiUtil.background(() -> describeBaseline(path),
+                text -> {
+                    if (request == statusRequest) {
+                        baselineStatus.setText(text);
+                    }
+                },
+                error -> {
+                    if (request == statusRequest) {
+                        baselineStatus.setText("Could not read baseline: " + UiUtil.friendlyMessage(error));
+                    }
+                });
+    }
+
+    private String describeBaseline(Path path) throws IOException, SQLException {
+        if (!Files.isDirectory(path)) {
+            return "This folder does not exist.";
         }
-        try {
-            Optional<BaselineInfo> b = ctx.scanService().findBaseline(path);
-            baselineStatus.setText(b.map(info -> "Baseline saved " + Format.dateTime(info.createdAt()) + " · "
-                            + Format.count(info.fileCount(), "file") + " · " + Format.bytes(info.totalBytes()))
-                    .orElse("No baseline saved for this folder yet."));
-        } catch (Exception e) {
-            baselineStatus.setText("Could not read baseline: " + UiUtil.friendlyMessage(e));
-        }
+        return ctx.scanService().findBaseline(path)
+                .map(info -> "Baseline saved " + Format.dateTime(info.createdAt()) + " \u00b7 "
+                        + Format.count(info.fileCount(), "file") + " \u00b7 " + Format.bytes(info.totalBytes()))
+                .orElse("No baseline saved for this folder yet.");
     }
 
     private void createBaseline() {

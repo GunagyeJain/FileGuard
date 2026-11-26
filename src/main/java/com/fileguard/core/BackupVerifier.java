@@ -31,20 +31,31 @@ public class BackupVerifier {
 
     public Result verify(Path original, Path backup, ProgressListener progress) throws IOException {
         validateFolders(original, backup);
-
         FolderScanner.Listing originalList = scanner.listFiles(original, progress);
         FolderScanner.Listing backupList = scanner.listFiles(backup, progress);
-
-        Map<String, FileEntry> backupByPath = new HashMap<>();
-        backupList.files().forEach(f -> backupByPath.put(f.relativePath(), f));
+        Map<String, FileEntry> originalByPath = byPath(originalList.files());
+        Map<String, FileEntry> backupByPath = byPath(backupList.files());
 
         List<ResultItem> items = new ArrayList<>(originalList.skipped());
         items.addAll(backupList.skipped());
+        List<String> sameSize = compareSizes(originalList.files(), backupByPath, items);
+        addFilesOnlyInBackup(backupList.files(), originalByPath, items);
+        int matched = compareContents(sameSize, originalByPath, backupByPath, items, progress);
 
-        // Pass 1: compare paths and sizes (cheap, no file reading needed).
-        List<FileEntry> toHash = new ArrayList<>();
-        List<String> sameSizePaths = new ArrayList<>();
-        for (FileEntry file : originalList.files()) {
+        items.sort(Comparator.comparing(ResultItem::status).thenComparing(ResultItem::path));
+        long bytesHashed = 2 * sameSize.stream().mapToLong(path -> originalByPath.get(path).size()).sum();
+        int examined = originalList.files().size() + backupList.files().size();
+        return new Result(items, matched, examined, bytesHashed);
+    }
+
+    /**
+     * Pass 1 (cheap, no file reading): reports files missing from the backup and files
+     * whose size differs. Returns the paths whose sizes match, which still need hashing.
+     */
+    private static List<String> compareSizes(List<FileEntry> originals, Map<String, FileEntry> backupByPath,
+                                             List<ResultItem> items) {
+        List<String> sameSize = new ArrayList<>();
+        for (FileEntry file : originals) {
             FileEntry copy = backupByPath.get(file.relativePath());
             if (copy == null) {
                 items.add(new ResultItem(ResultStatus.MISSING, file.relativePath(),
@@ -54,28 +65,37 @@ public class BackupVerifier {
                         "Size differs: original " + Format.bytes(file.size()) + ", backup " + Format.bytes(copy.size()),
                         file.size()));
             } else {
-                toHash.add(file);
-                toHash.add(copy);
-                sameSizePaths.add(file.relativePath());
+                sameSize.add(file.relativePath());
             }
         }
-        Map<String, FileEntry> originalByPath = new HashMap<>();
-        originalList.files().forEach(f -> originalByPath.put(f.relativePath(), f));
-        for (FileEntry copy : backupList.files()) {
+        return sameSize;
+    }
+
+    private static void addFilesOnlyInBackup(List<FileEntry> copies, Map<String, FileEntry> originalByPath,
+                                             List<ResultItem> items) {
+        for (FileEntry copy : copies) {
             if (!originalByPath.containsKey(copy.relativePath())) {
                 items.add(new ResultItem(ResultStatus.EXTRA, copy.relativePath(),
                         "Exists only in backup folder", copy.size()));
             }
         }
+    }
 
-        // Pass 2: hash files that have the same size on both sides.
+    /** Pass 2: hashes both sides of every same-size pair. Returns how many pairs are identical. */
+    private int compareContents(List<String> sameSize, Map<String, FileEntry> originalByPath,
+                                Map<String, FileEntry> backupByPath, List<ResultItem> items, ProgressListener progress) {
+        List<FileEntry> toHash = new ArrayList<>();
+        for (String path : sameSize) {
+            toHash.add(originalByPath.get(path));
+            toHash.add(backupByPath.get(path));
+        }
         FolderScanner.HashResult hashResult = scanner.hashFiles(toHash, progress, "Comparing");
         items.addAll(hashResult.skipped());
         Map<Path, String> hashByFile = new HashMap<>();
         hashResult.hashed().forEach(f -> hashByFile.put(f.absolutePath(), f.hash()));
 
         int matched = 0;
-        for (String path : sameSizePaths) {
+        for (String path : sameSize) {
             String a = hashByFile.get(originalByPath.get(path).absolutePath());
             String b = hashByFile.get(backupByPath.get(path).absolutePath());
             if (a == null || b == null) {
@@ -88,11 +108,13 @@ public class BackupVerifier {
                         "Same size but different content (SHA-256 mismatch)", originalByPath.get(path).size()));
             }
         }
+        return matched;
+    }
 
-        items.sort(Comparator.comparing(ResultItem::status).thenComparing(ResultItem::path));
-        long bytesHashed = toHash.stream().mapToLong(FileEntry::size).sum();
-        int examined = originalList.files().size() + backupList.files().size();
-        return new Result(items, matched, examined, bytesHashed);
+    private static Map<String, FileEntry> byPath(List<FileEntry> files) {
+        Map<String, FileEntry> map = new HashMap<>();
+        files.forEach(f -> map.put(f.relativePath(), f));
+        return map;
     }
 
     /**

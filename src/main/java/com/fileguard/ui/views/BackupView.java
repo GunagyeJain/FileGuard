@@ -67,7 +67,6 @@ public class BackupView extends StackPane {
         VBox folders = UiUtil.card("Folders to compare", grid, actions);
 
         exportButton.setGraphic(Icons.create(Icons.DOWNLOAD, 14));
-        exportButton.getStyleClass().add("button-secondary");
         exportButton.setDisable(true);
         exportButton.setOnAction(e -> UiUtil.exportReport(ctx, getScene().getWindow(), currentReport));
         summary.getStyleClass().add("muted");

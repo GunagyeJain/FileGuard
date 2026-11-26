@@ -9,6 +9,7 @@ import com.fileguard.ui.views.LogsView;
 import com.fileguard.ui.views.Refreshable;
 import com.fileguard.ui.views.SettingsView;
 import javafx.application.Platform;
+import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.control.Label;
@@ -30,6 +31,8 @@ import java.util.Map;
  * (and keeps its results) while the user looks at another page.
  */
 public class MainWindow extends BorderPane {
+
+    private static final double SIDEBAR_WIDTH = 236;
 
     private final Map<Page, Node> pages = new EnumMap<>(Page.class);
     private final Map<Page, ToggleButton> navButtons = new EnumMap<>(Page.class);
@@ -93,8 +96,8 @@ public class MainWindow extends BorderPane {
         VBox.setVgrow(spacer, Priority.ALWAYS);
         sidebar.getChildren().addAll(spacer, navItem(Page.SETTINGS), statusLine());
         sidebar.getStyleClass().add("sidebar");
-        sidebar.setPrefWidth(236);
-        sidebar.setMinWidth(236);
+        sidebar.setPrefWidth(SIDEBAR_WIDTH);
+        sidebar.setMinWidth(SIDEBAR_WIDTH);
         return sidebar;
     }
 
@@ -146,7 +149,7 @@ public class MainWindow extends BorderPane {
 
         VBox box = new VBox(2, row, address);
         box.getStyleClass().add("status-line");
-        VBox.setMargin(box, new javafx.geometry.Insets(10, 0, 0, 0));
+        VBox.setMargin(box, new Insets(10, 0, 0, 0));
         return box;
     }
 }

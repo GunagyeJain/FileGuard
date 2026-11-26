@@ -106,9 +106,13 @@ public final class Json {
         return (Map<String, Object>) value;
     }
 
+    /** Deeper nesting is rejected, so a body like [[[[...]]]] cannot overflow the stack. */
+    static final int MAX_DEPTH = 32;
+
     private static final class Parser {
         private final String s;
         private int pos;
+        private int depth;
 
         Parser(String s) {
             this.s = s == null ? "" : s;
@@ -120,6 +124,9 @@ public final class Json {
                 throw error("Unexpected end of input");
             }
             char c = s.charAt(pos);
+            if ((c == '{' || c == '[') && ++depth > MAX_DEPTH) {
+                throw error("Nesting too deep (max " + MAX_DEPTH + ")");
+            }
             return switch (c) {
                 case '{' -> object();
                 case '[' -> array();
@@ -137,6 +144,7 @@ public final class Json {
             skipWhitespace();
             if (peek() == '}') {
                 pos++;
+                depth--;
                 return map;
             }
             while (true) {
@@ -151,6 +159,7 @@ public final class Json {
                 skipWhitespace();
                 char c = next();
                 if (c == '}') {
+                    depth--;
                     return map;
                 }
                 if (c != ',') {
@@ -165,6 +174,7 @@ public final class Json {
             skipWhitespace();
             if (peek() == ']') {
                 pos++;
+                depth--;
                 return list;
             }
             while (true) {
@@ -172,6 +182,7 @@ public final class Json {
                 skipWhitespace();
                 char c = next();
                 if (c == ']') {
+                    depth--;
                     return list;
                 }
                 if (c != ',') {

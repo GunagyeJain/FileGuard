@@ -40,6 +40,7 @@ public class ScanTask extends Task<ScanReport> implements ProgressListener {
         }
     }
 
+    /** Task.updateMessage is protected; this override only makes it public for ProgressListener. */
     @Override
     public void updateMessage(String message) {
         super.updateMessage(message);

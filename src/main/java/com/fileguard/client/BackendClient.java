@@ -25,6 +25,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 /**
@@ -37,6 +38,7 @@ import java.util.function.Consumer;
 public class BackendClient implements ActivityLogger, AutoCloseable {
 
     private static final Duration TIMEOUT = Duration.ofSeconds(3);
+    private static final Duration SHUTDOWN_TIMEOUT = Duration.ofSeconds(1);
     private static final int MAX_QUEUE = 500;
     private static final long HEALTH_INTERVAL_SECONDS = 5;
 
@@ -45,7 +47,7 @@ public class BackendClient implements ActivityLogger, AutoCloseable {
     private final Queue<String> pending = new ConcurrentLinkedQueue<>();
     private final List<Consumer<Boolean>> statusListeners = new CopyOnWriteArrayList<>();
     private ScheduledExecutorService monitor;
-    private volatile boolean online;
+    private final AtomicBoolean online = new AtomicBoolean(false);
 
     public BackendClient(URI baseUri) {
         this.baseUri = baseUri;
@@ -60,7 +62,7 @@ public class BackendClient implements ActivityLogger, AutoCloseable {
     }
 
     public boolean isOnline() {
-        return online;
+        return online.get();
     }
 
     /** Called with true/false whenever the backend goes online or offline (on a background thread). */
@@ -87,6 +89,7 @@ public class BackendClient implements ActivityLogger, AutoCloseable {
         if (monitor != null) {
             monitor.shutdownNow();
         }
+        http.close();
     }
 
     // -------------------------------------------------------------- API calls
@@ -107,13 +110,8 @@ public class BackendClient implements ActivityLogger, AutoCloseable {
     /** Sends a log asynchronously. Never throws; queues the log if the backend is offline. */
     @Override
     public void log(LogLevel level, String category, String message, String details) {
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("level", level.name());
-        body.put("category", category);
-        body.put("message", truncate(message, 500));
-        body.put("details", truncate(details == null ? "" : details, 4000));
-        String json = Json.write(body);
-        if (!online) {
+        String json = toJson(level, category, message, details);
+        if (!online.get()) {
             enqueue(json);
             return;
         }
@@ -122,8 +120,31 @@ public class BackendClient implements ActivityLogger, AutoCloseable {
                     if (error != null || response.statusCode() >= 500) {
                         setOnline(false);
                         enqueue(json);
+                    } else if (response.statusCode() >= 400) {
+                        // A rejected log will never succeed, so it is reported instead of queued.
+                        System.err.println("[fileguard] backend rejected a log (HTTP " + response.statusCode() + "): " + message);
                     }
                 });
+    }
+
+    /**
+     * Sends one log and waits (at most one second) for it to arrive. Used when the app
+     * closes, where an asynchronous send could be cut off. Never throws.
+     */
+    public void logAndWait(LogLevel level, String category, String message) {
+        if (!online.get()) {
+            return;
+        }
+        try {
+            HttpRequest request = HttpRequest.newBuilder(uri("/api/logs")).timeout(SHUTDOWN_TIMEOUT)
+                    .header("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(toJson(level, category, message, ""))).build();
+            http.send(request, HttpResponse.BodyHandlers.discarding());
+        } catch (IOException e) {
+            setOnline(false);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     /** Loads logs (newest first). Blocking: call from a background thread. */
@@ -174,7 +195,7 @@ public class BackendClient implements ActivityLogger, AutoCloseable {
 
     private void flushPending() {
         String json;
-        while (online && (json = pending.poll()) != null) {
+        while (online.get() && (json = pending.poll()) != null) {
             try {
                 HttpResponse<String> r = http.send(post(json), HttpResponse.BodyHandlers.ofString());
                 if (r.statusCode() >= 500) {
@@ -209,12 +230,20 @@ public class BackendClient implements ActivityLogger, AutoCloseable {
         return baseUri.resolve(path);
     }
 
+    /** getAndSet is atomic, so listeners fire exactly once per change even with several threads. */
     private void setOnline(boolean value) {
-        boolean changed = online != value;
-        online = value;
-        if (changed) {
+        if (online.getAndSet(value) != value) {
             statusListeners.forEach(l -> l.accept(value));
         }
+    }
+
+    private static String toJson(LogLevel level, String category, String message, String details) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("level", level.name());
+        body.put("category", category);
+        body.put("message", truncate(message, BackendServer.MAX_MESSAGE));
+        body.put("details", truncate(details == null ? "" : details, BackendServer.MAX_DETAILS));
+        return Json.write(body);
     }
 
     @SuppressWarnings("unchecked")

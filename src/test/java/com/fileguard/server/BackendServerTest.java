@@ -99,6 +99,25 @@ class BackendServerTest {
     }
 
     @Test
+    void rejectsRequestsThatCouldComeFromAWebPageOrLookAlikePaths() throws Exception {
+        // A browser can send text/plain cross-site without a CORS preflight, so it is refused.
+        HttpRequest plain = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + server.port() + "/api/logs"))
+                .header("Content-Type", "text/plain")
+                .POST(HttpRequest.BodyPublishers.ofString("{\"level\":\"INFO\",\"category\":\"A\",\"message\":\"x\"}")).build();
+        assertEquals(415, http.send(plain, HttpResponse.BodyHandlers.ofString()).statusCode());
+        // createContext matches prefixes; the server must still only answer its exact paths.
+        assertEquals(404, send("GET", "/api/logsXYZ", null).statusCode());
+        assertEquals(404, send("GET", "/api/health/extra", null).statusCode());
+        assertEquals(200, send("GET", "/api/logs/", null).statusCode());
+        // Deeply nested JSON is rejected cleanly instead of overflowing the stack.
+        String deep = "[".repeat(5000) + "]".repeat(5000);
+        HttpResponse<String> r = send("POST", "/api/logs", deep);
+        assertEquals(400, r.statusCode());
+        assertTrue(r.body().contains("Nesting too deep"));
+        assertTrue(client.fetchLogs(10, null).isEmpty(), "nothing was stored");
+    }
+
+    @Test
     void clearDeletesEverything() throws Exception {
         client.checkHealth();
         send("POST", "/api/logs", "{\"level\":\"WARN\",\"category\":\"APP\",\"message\":\"one\"}");

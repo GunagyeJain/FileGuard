@@ -47,13 +47,19 @@ public class BackendServer {
 
     public static final int DEFAULT_PORT = 8765;
     public static final String SERVICE_NAME = "fileguard-backend";
-    public static final String VERSION = "1.1.0";
+    public static final String VERSION = com.fileguard.AppInfo.VERSION;
 
+    /** Field limits, also used by the client so both sides agree. */
+    public static final int MAX_MESSAGE = 500;
+    public static final int MAX_DETAILS = 4000;
+    public static final int MAX_CATEGORY = 32;
+
+    private static final int MAX_LEVEL_LENGTH = 10;
     private static final int MAX_BODY_BYTES = 16 * 1024;
     private static final long DRAIN_LIMIT_BYTES = 1024 * 1024;
-    private static final int MAX_MESSAGE = 500;
-    private static final int MAX_DETAILS = 4000;
-    private static final Pattern CATEGORY = Pattern.compile("[A-Z][A-Z0-9_]{0,31}");
+    private static final int WORKER_THREADS = 4;
+    private static final int DEFAULT_LIMIT = 200;
+    private static final Pattern CATEGORY = Pattern.compile("[A-Z][A-Z0-9_]{0," + (MAX_CATEGORY - 1) + "}");
 
     private final HttpServer server;
     private final ExecutorService executor;
@@ -74,7 +80,7 @@ public class BackendServer {
     public static BackendServer start(int port, Path dbFile) throws IOException, SQLException {
         LogRepository repository = new LogRepository(dbFile);
         HttpServer http = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), port), 0);
-        ExecutorService pool = Executors.newFixedThreadPool(4, r -> {
+        ExecutorService pool = Executors.newFixedThreadPool(WORKER_THREADS, r -> {
             Thread t = new Thread(r, "fileguard-backend");
             t.setDaemon(true); // never keeps the desktop app alive on exit
             return t;
@@ -108,6 +114,7 @@ public class BackendServer {
     // ------------------------------------------------------------- endpoints
 
     private void health(HttpExchange ex) throws IOException {
+        requirePath(ex, "/api/health");
         requireMethod(ex, "GET");
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("service", SERVICE_NAME);
@@ -117,10 +124,11 @@ public class BackendServer {
     }
 
     private void logsEndpoint(HttpExchange ex) throws IOException, SQLException {
+        requirePath(ex, "/api/logs");
         switch (ex.getRequestMethod()) {
             case "GET" -> {
                 Map<String, String> q = query(ex);
-                int limit = parseInt(q.get("limit"), 200);
+                int limit = parseInt(q.get("limit"), DEFAULT_LIMIT);
                 LogLevel level = q.containsKey("level") && !q.get("level").isBlank() ? parseLevel(q.get("level")) : null;
                 String category = q.containsKey("category") && !q.get("category").isBlank()
                         ? q.get("category").toUpperCase(Locale.ROOT) : null;
@@ -131,11 +139,12 @@ public class BackendServer {
                 sendData(ex, 200, list);
             }
             case "POST" -> {
-                Map<String, Object> body = Json.parseObject(readBody(ex));
-                LogLevel level = parseLevel(requireText(body, "level", 10));
-                String category = requireText(body, "category", 32).toUpperCase(Locale.ROOT);
+                requireJson(ex);
+                Map<String, Object> body = parseBody(readBody(ex));
+                LogLevel level = parseLevel(requireText(body, "level", MAX_LEVEL_LENGTH));
+                String category = requireText(body, "category", MAX_CATEGORY).toUpperCase(Locale.ROOT);
                 if (!CATEGORY.matcher(category).matches()) {
-                    throw new BadRequest("category must be letters, digits or '_' (max 32)");
+                    throw new BadRequest("category must be letters, digits or '_' (max " + MAX_CATEGORY + ")");
                 }
                 String message = requireText(body, "message", MAX_MESSAGE);
                 Object details = body.get("details");
@@ -155,6 +164,7 @@ public class BackendServer {
     }
 
     private void stats(HttpExchange ex) throws IOException, SQLException {
+        requirePath(ex, "/api/stats");
         requireMethod(ex, "GET");
         Map<String, Object> data = new LinkedHashMap<>();
         int total = 0;
@@ -196,10 +206,14 @@ public class BackendServer {
             // blocks run, and the error response could no longer be sent.
             try {
                 endpoint.handle(ex);
-            } catch (BadRequest | IllegalArgumentException e) {
+            } catch (BadRequest e) {
                 sendError(ex, 400, e.getMessage());
+            } catch (NotFound e) {
+                sendError(ex, 404, "Not found");
             } catch (MethodNotAllowed e) {
                 sendError(ex, 405, "Method not allowed");
+            } catch (UnsupportedMediaType e) {
+                sendError(ex, 415, "Content-Type must be application/json");
             } catch (BodyTooLarge e) {
                 sendError(ex, 413, "Request body too large");
             } catch (Exception e) {
@@ -222,6 +236,33 @@ public class BackendServer {
         m.put("message", e.message());
         m.put("details", e.details() == null ? "" : e.details());
         return m;
+    }
+
+    /** createContext matches by prefix, so paths like /api/logsXYZ are rejected explicitly. */
+    private static void requirePath(HttpExchange ex, String path) {
+        String actual = ex.getRequestURI().getPath();
+        if (!actual.equals(path) && !actual.equals(path + "/")) {
+            throw new NotFound();
+        }
+    }
+
+    /**
+     * Requiring JSON makes browsers send a CORS "preflight" first, which this server does not
+     * approve, so a web page open in the browser cannot quietly post fake logs to it.
+     */
+    private static void requireJson(HttpExchange ex) {
+        String type = ex.getRequestHeaders().getFirst("Content-Type");
+        if (type == null || !type.toLowerCase(Locale.ROOT).startsWith("application/json")) {
+            throw new UnsupportedMediaType();
+        }
+    }
+
+    private static Map<String, Object> parseBody(String text) {
+        try {
+            return Json.parseObject(text);
+        } catch (IllegalArgumentException e) {
+            throw new BadRequest("Invalid JSON: " + e.getMessage());
+        }
     }
 
     private static void requireMethod(HttpExchange ex, String method) {
@@ -326,6 +367,12 @@ public class BackendServer {
     }
 
     private static final class MethodNotAllowed extends RuntimeException {
+    }
+
+    private static final class NotFound extends RuntimeException {
+    }
+
+    private static final class UnsupportedMediaType extends RuntimeException {
     }
 
     private static final class BodyTooLarge extends RuntimeException {

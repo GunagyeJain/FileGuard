@@ -43,9 +43,4 @@ public record ScanReport(long id, ScanType type, String folder, String secondFol
         return new ScanReport(newId, type, folder, secondFolder, startedAt, durationMs, status,
                 filesScanned, bytesScanned, issuesFound, redundantBytes, summary, items);
     }
-
-    public ScanReport withItems(List<ResultItem> newItems) {
-        return new ScanReport(id, type, folder, secondFolder, startedAt, durationMs, status,
-                filesScanned, bytesScanned, issuesFound, redundantBytes, summary, newItems);
-    }
 }
