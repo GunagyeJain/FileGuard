@@ -57,7 +57,8 @@ final class ScanColumns {
                 setGraphic(empty || item == null ? null : StatusBadge.forScan(item));
             }
         });
-        col.setPrefWidth(110);
+        col.setPrefWidth(120);
+        col.setMinWidth(120); // room for the "Completed" label
         return col;
     }
 

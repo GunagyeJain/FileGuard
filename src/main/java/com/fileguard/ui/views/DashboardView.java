@@ -11,7 +11,7 @@ import com.fileguard.ui.components.StatCard;
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.geometry.Pos;
-import javafx.scene.control.Button;
+import javafx.scene.Cursor;
 import javafx.scene.control.Label;
 import javafx.scene.control.TableView;
 import javafx.scene.layout.HBox;
@@ -24,47 +24,61 @@ import java.util.List;
 import java.util.Optional;
 import java.util.function.Consumer;
 
-/** Start page: key numbers, recent scans, shortcuts to the tools and the backend status. */
+/** Start page: summary cards, quick actions, the most recent scans and the backend status. */
 public class DashboardView extends StackPane implements Refreshable {
 
-    private static final int RECENT_LIMIT = 10;
-    private static final double TABLE_MIN_HEIGHT = 260;
-    private static final double SIDE_PANEL_MIN_WIDTH = 320;
-    private static final double SIDE_PANEL_WIDTH = 340;
-    private static final double SIDE_PANEL_MAX_WIDTH = 360;
+    private static final int RECENT_LIMIT = 8;
+    private static final double TABLE_MIN_HEIGHT = 200;
+    private static final double BACKEND_CARD_WIDTH = 300;
 
     private final AppContext ctx;
-    private final StatCard scansCard = new StatCard("Scans completed", "accent");
-    private final StatCard baselinesCard = new StatCard("Monitored folders", "success");
-    private final StatCard lastCheckCard = new StatCard("Latest integrity check", "warning");
-    private final StatCard redundantCard = new StatCard("Redundant storage", "done");
+    private final StatCard scansCard = new StatCard("Scans completed", Icons.CLOCK, "accent");
+    private final StatCard baselinesCard = new StatCard("Saved baselines", Icons.SHIELD, "success");
+    private final StatCard lastCheckCard = new StatCard("Latest integrity check", Icons.REFRESH, "warning");
+    private final StatCard redundantCard = new StatCard("Redundant storage", Icons.COPY, "danger");
     private final TableView<ScanReport> recent = new TableView<>();
     private final Region backendDot = new Region();
     private final Label backendStatus = new Label("Checking…");
-    private final Label backendLogs = new Label("—");
+    private final Label backendLogs = new Label("-");
 
     public DashboardView(AppContext ctx, Consumer<Page> navigator) {
         this.ctx = ctx;
-        HBox columns = new HBox(24, buildRecentScans(navigator), buildSidePanel(navigator));
-        VBox.setVgrow(columns, Priority.ALWAYS);
-        VBox page = new VBox(20,
-                UiUtil.pageHeader("Dashboard", "Overview of monitored folders, recent scans and the local backend."),
+        HBox actions = new HBox(14,
+                actionTile(Icons.SHIELD, "Check file integrity",
+                        "Save a baseline and detect added, modified or deleted files.", () -> navigator.accept(Page.INTEGRITY)),
+                actionTile(Icons.BACKUP, "Verify a backup",
+                        "Compare a folder with its backup by relative path and content.", () -> navigator.accept(Page.BACKUP)),
+                actionTile(Icons.COPY, "Find duplicates",
+                        "Locate identical files and see how much space they waste.", () -> navigator.accept(Page.DUPLICATES)));
+
+        Label viewAll = new Label("View full history →");
+        viewAll.getStyleClass().add("link");
+        viewAll.setCursor(Cursor.HAND);
+        viewAll.setOnMouseClicked(e -> navigator.accept(Page.HISTORY));
+        HBox recentHeader = new HBox(12, UiUtil.sectionTitle("Recent scans"), UiUtil.spacer(), viewAll);
+        recentHeader.setAlignment(Pos.CENTER_LEFT);
+
+        HBox recentRow = new HBox(14, buildRecentTable(navigator), buildBackendCard(navigator));
+        VBox.setVgrow(recentRow, Priority.ALWAYS);
+
+        VBox page = new VBox(18,
+                UiUtil.pageHeader("Dashboard", "An overview of your folders, baselines and recent scans."),
                 UiUtil.metricStrip(scansCard, baselinesCard, lastCheckCard, redundantCard),
-                columns,
-                UiUtil.notice("FileGuard identifies differences using SHA-256 hashes. It cannot tell whether a change "
-                        + "was intentional (an edit) or unwanted (damage), so review the results yourself."));
+                UiUtil.sectionTitle("Quick actions"), actions,
+                recentHeader, recentRow,
+                UiUtil.notice("FileGuard identifies differences using SHA-256 hashes. It cannot determine whether a change "
+                        + "was intentional (an edit) or unwanted (damage), so always review the results yourself."));
         getChildren().add(UiUtil.scrollPage(page));
         ctx.backend().addStatusListener(online -> Platform.runLater(this::refreshBackend));
     }
 
-    /** Left column: the most recent scans; double-click opens the history page. */
-    private VBox buildRecentScans(Consumer<Page> navigator) {
+    private TableView<ScanReport> buildRecentTable(Consumer<Page> navigator) {
         recent.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
         recent.getColumns().add(ScanColumns.date());
         recent.getColumns().add(ScanColumns.type());
         recent.getColumns().add(ScanColumns.status());
         recent.getColumns().add(ScanColumns.summary());
-        Label empty = new Label("No scans yet. Pick a tool on the right to get started.");
+        Label empty = new Label("No scans yet. Start with one of the quick actions above.");
         empty.getStyleClass().add("placeholder");
         recent.setPlaceholder(empty);
         recent.setMinHeight(TABLE_MIN_HEIGHT);
@@ -73,47 +87,27 @@ public class DashboardView extends StackPane implements Refreshable {
                 navigator.accept(Page.HISTORY);
             }
         });
-        VBox.setVgrow(recent, Priority.ALWAYS);
-
-        Label viewAll = new Label("View all");
-        viewAll.getStyleClass().addAll("link", "small");
-        viewAll.setOnMouseClicked(e -> navigator.accept(Page.HISTORY));
-        HBox header = new HBox(8, UiUtil.sectionTitle("Recent scans"), UiUtil.spacer(), viewAll);
-        header.setAlignment(Pos.BASELINE_LEFT);
-        VBox left = new VBox(10, header, recent);
-        HBox.setHgrow(left, Priority.ALWAYS);
-        VBox.setVgrow(left, Priority.ALWAYS);
-        return left;
+        HBox.setHgrow(recent, Priority.ALWAYS);
+        return recent;
     }
 
-    /** Right column: shortcuts to the three tools and the backend status. */
-    private VBox buildSidePanel(Consumer<Page> navigator) {
-        Label toolsTitle = new Label("Tools");
-        toolsTitle.getStyleClass().add("box-title");
-        HBox toolsHeader = new HBox(toolsTitle);
-        toolsHeader.getStyleClass().add("box-header");
-        VBox tools = new VBox(toolsHeader,
-                toolRow(Icons.SHIELD, "File integrity", "Detect added, modified and deleted files", () -> navigator.accept(Page.INTEGRITY), false),
-                toolRow(Icons.BACKUP, "Backup verification", "Compare a folder with its backup", () -> navigator.accept(Page.BACKUP), false),
-                toolRow(Icons.COPY, "Duplicate files", "Find identical files and wasted space", () -> navigator.accept(Page.DUPLICATES), true));
-        tools.getStyleClass().add("box");
-
+    /** Small card showing whether the local backend is reachable and how many logs it holds. */
+    private VBox buildBackendCard(Consumer<Page> navigator) {
         backendDot.getStyleClass().add("status-dot");
         HBox statusRow = new HBox(8, backendDot, backendStatus);
         statusRow.setAlignment(Pos.CENTER_LEFT);
         Label address = new Label(ctx.backend().baseUri().toString());
-        address.getStyleClass().addAll("mono", "muted");
+        address.getStyleClass().add("muted");
         backendLogs.getStyleClass().add("muted");
-        Label openLogs = new Label("Open activity log");
+        backendLogs.setWrapText(true);
+        Label openLogs = new Label("Open activity log →");
         openLogs.getStyleClass().add("link");
+        openLogs.setCursor(Cursor.HAND);
         openLogs.setOnMouseClicked(e -> navigator.accept(Page.LOGS));
-        VBox backendBox = UiUtil.box("Local backend", null, statusRow, address, backendLogs, openLogs);
-
-        VBox right = new VBox(16, tools, backendBox);
-        right.setMinWidth(SIDE_PANEL_MIN_WIDTH);
-        right.setPrefWidth(SIDE_PANEL_WIDTH);
-        right.setMaxWidth(SIDE_PANEL_MAX_WIDTH);
-        return right;
+        VBox card = UiUtil.card("Local backend", statusRow, address, backendLogs, openLogs);
+        card.setMinWidth(BACKEND_CARD_WIDTH);
+        card.setMaxWidth(BACKEND_CARD_WIDTH);
+        return card;
     }
 
     @Override
@@ -122,19 +116,20 @@ public class DashboardView extends StackPane implements Refreshable {
             int completed = ctx.scanService().completedScanCount();
             List<ScanReport> latest = ctx.scanService().recentScans(RECENT_LIMIT);
             scansCard.setValue(String.valueOf(completed));
-            scansCard.setCaption(latest.isEmpty() ? "No scans yet" : "Last activity " + Format.dateTime(latest.get(0).startedAt()));
+            scansCard.setCaption(latest.isEmpty() ? "No scans yet"
+                    : "Last activity " + Format.dateTime(latest.get(0).startedAt()));
 
             int baselines = ctx.scanService().baselineCount();
             baselinesCard.setValue(String.valueOf(baselines));
-            baselinesCard.setCaption(baselines == 1 ? "folder with a saved baseline" : "folders with a saved baseline");
+            baselinesCard.setCaption(baselines == 1 ? "folder being monitored" : "folders being monitored");
 
             Optional<ScanReport> check = ctx.scanService().latestCompleted(ScanType.INTEGRITY);
-            lastCheckCard.setValue(check.map(r -> Format.count(r.issuesFound(), "difference")).orElse("—"));
+            lastCheckCard.setValue(check.map(r -> Format.count(r.issuesFound(), "difference")).orElse("-"));
             lastCheckCard.setCaption(check.map(r -> Format.dateTime(r.startedAt())).orElse("No integrity check yet"));
 
             Optional<ScanReport> dup = ctx.scanService().latestCompleted(ScanType.DUPLICATES);
-            redundantCard.setValue(dup.map(r -> Format.bytes(r.redundantBytes())).orElse("—"));
-            redundantCard.setCaption(dup.map(r -> "Latest search " + Format.dateTime(r.startedAt())).orElse("No duplicate search yet"));
+            redundantCard.setValue(dup.map(r -> Format.bytes(r.redundantBytes())).orElse("-"));
+            redundantCard.setCaption(dup.map(r -> "Latest search, " + Format.dateTime(r.startedAt())).orElse("No duplicate search yet"));
 
             recent.setItems(FXCollections.observableArrayList(latest));
         } catch (Exception e) {
@@ -148,8 +143,8 @@ public class DashboardView extends StackPane implements Refreshable {
         UiUtil.background(() -> ctx.backend().fetchStats(),
                 stats -> {
                     setBackendOnline(true);
-                    backendLogs.setText(stats.getOrDefault("total", 0) + " log entries \u00b7 "
-                            + stats.getOrDefault("WARN", 0) + " warnings \u00b7 " + stats.getOrDefault("ERROR", 0) + " errors");
+                    backendLogs.setText(stats.getOrDefault("total", 0) + " log entries · "
+                            + stats.getOrDefault("WARN", 0) + " warnings · " + stats.getOrDefault("ERROR", 0) + " errors");
                 },
                 error -> {
                     setBackendOnline(false);
@@ -163,26 +158,22 @@ public class DashboardView extends StackPane implements Refreshable {
         backendStatus.setText(online ? "Online" : "Offline");
     }
 
-    private HBox toolRow(String icon, String title, String description, Runnable open, boolean last) {
+    private VBox actionTile(String icon, String title, String description, Runnable onClick) {
+        StackPane iconBox = new StackPane(Icons.create(icon, 18));
+        iconBox.getStyleClass().addAll("stat-icon", "tone-accent");
         Label t = new Label(title);
-        t.getStyleClass().add("strong");
+        t.getStyleClass().add("tile-title");
         Label d = new Label(description);
-        d.getStyleClass().addAll("muted", "small");
-        VBox text = new VBox(1, t, d);
-        HBox.setHgrow(text, Priority.ALWAYS);
-        Button go = new Button("Open");
-        go.getStyleClass().add("button-small");
-        go.setMinWidth(Region.USE_PREF_SIZE);
-        t.setMinWidth(0);
-        d.setMinWidth(0);
-        text.setMinWidth(0);
-        go.setOnAction(e -> open.run());
-        HBox row = new HBox(12, Icons.create(icon, 16), text, go);
-        row.setAlignment(Pos.CENTER_LEFT);
-        row.getStyleClass().add("box-row");
-        if (last) {
-            row.getStyleClass().add("last");
-        }
-        return row;
+        d.getStyleClass().add("muted");
+        d.setWrapText(true);
+        Label go = new Label("Open →");
+        go.getStyleClass().add("link");
+        VBox tile = new VBox(10, iconBox, t, d, go);
+        tile.getStyleClass().addAll("card", "action-tile");
+        tile.setCursor(Cursor.HAND);
+        tile.setOnMouseClicked(e -> onClick.run());
+        tile.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(tile, Priority.ALWAYS);
+        return tile;
     }
 }

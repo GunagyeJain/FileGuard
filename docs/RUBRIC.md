@@ -35,7 +35,7 @@ This page maps every line of the **Lab Evaluation-II** rubric to what FileGuard 
 | Evidence | Where |
 |---|---|
 | JavaFX desktop UI with 7 pages and sidebar navigation | `ui/MainWindow.java`, `ui/views/*` |
-| Professional look: GitHub Primer colours, light and dark theme, remembered | `resources/.../css/theme-light.css`, `theme-dark.css`, `ui/ThemeManager.java` |
+| Polished dashboard look: indigo accent, rounded cards with icons, light and dark theme, remembered | `resources/.../css/theme-light.css`, `theme-dark.css`, `ui/ThemeManager.java` |
 | All styling in CSS (no inline colours); reusable components | `css/base.css`, `ui/components/*` |
 | Responsive UI: scans in the background with progress, current file and Cancel | `ui/ScanTask.java`, `ui/components/ScanProgressPanel.java` |
 | Clear feedback: summary numbers, status labels, tables, empty states, confirmations | every page |

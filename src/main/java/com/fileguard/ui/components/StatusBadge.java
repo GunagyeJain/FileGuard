@@ -14,8 +14,7 @@ public final class StatusBadge {
     public static Label forResult(ResultStatus status) {
         String tone = switch (status) {
             case ADDED, EXTRA -> "info";
-            case MODIFIED, DIFFERENT -> "warning";
-            case DUPLICATE -> "done";
+            case MODIFIED, DIFFERENT, DUPLICATE -> "warning";
             case DELETED, MISSING -> "danger";
             case SKIPPED -> "neutral";
         };

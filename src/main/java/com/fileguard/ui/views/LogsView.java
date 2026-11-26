@@ -43,10 +43,10 @@ public class LogsView extends StackPane implements Refreshable {
     private final TableView<LogEntry> table = new TableView<>();
     private final Label placeholder = new Label("Loading…");
     private final Label status = new Label();
-    private final StatCard total = new StatCard("Total entries", "accent");
-    private final StatCard info = new StatCard("Info", "info");
-    private final StatCard warn = new StatCard("Warnings", "warning");
-    private final StatCard error = new StatCard("Errors", "danger");
+    private final StatCard total = new StatCard("Total entries", Icons.LIST, "accent");
+    private final StatCard info = new StatCard("Info", Icons.INFO, "info");
+    private final StatCard warn = new StatCard("Warnings", Icons.WARNING, "warning");
+    private final StatCard error = new StatCard("Errors", Icons.WARNING, "danger");
 
     public LogsView(AppContext ctx) {
         this.ctx = ctx;

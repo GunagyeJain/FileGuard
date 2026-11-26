@@ -26,13 +26,13 @@ public class ScanProgressPanel extends VBox {
 
     public ScanProgressPanel() {
         super(8);
-        getStyleClass().addAll("box", "progress-box");
+        getStyleClass().addAll("card", "progress-card");
         title.getStyleClass().add("progress-title");
         percent.getStyleClass().add("muted");
         message.getStyleClass().add("muted");
         message.setMaxWidth(Double.MAX_VALUE);
         bar.setMaxWidth(Double.MAX_VALUE);
-        cancel.getStyleClass().addAll("button-danger", "button-small");
+        cancel.getStyleClass().add("button-danger");
         cancel.setOnAction(e -> {
             if (task != null) {
                 cancel.setDisable(true);

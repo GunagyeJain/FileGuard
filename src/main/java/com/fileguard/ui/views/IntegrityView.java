@@ -41,10 +41,10 @@ public class IntegrityView extends StackPane implements Refreshable {
     private final Button checkButton = new Button("Run integrity check");
     private final Button exportButton = new Button("Export CSV");
     private final ScanProgressPanel progress = new ScanProgressPanel();
-    private final StatCard added = new StatCard("Added", "info");
-    private final StatCard modified = new StatCard("Modified", "warning");
-    private final StatCard deleted = new StatCard("Deleted", "danger");
-    private final StatCard unchanged = new StatCard("Unchanged", "success");
+    private final StatCard added = new StatCard("Added", Icons.ADD, "info");
+    private final StatCard modified = new StatCard("Modified", Icons.EDIT, "warning");
+    private final StatCard deleted = new StatCard("Deleted", Icons.DELETE, "danger");
+    private final StatCard unchanged = new StatCard("Unchanged", Icons.CHECK, "success");
     private final Label summary = new Label("No check has been run in this session.");
     private final ResultsTable table = new ResultsTable(false,
             "Choose a folder, save a baseline, and run an integrity check later to see what changed.");

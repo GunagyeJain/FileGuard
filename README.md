@@ -34,7 +34,7 @@ The folder also contains **`FileGuard Backend.exe`**, which runs only the backen
 | **Report export** | Export any result (current or from history) as a **CSV** file for Excel or LibreOffice. |
 | **Background scanning** | Scans run on a background thread (JavaFX `Task`) with a progress bar, the current file and a **Cancel** button. Cancelling is safe: nothing half-finished is saved. |
 | **Local backend + activity log** | A REST server built only from parts of Java stores activity logs (scans started, completed, cancelled or failed; app start; theme changes) in its own SQLite database. View them on the **Activity log** page or in a browser at `http://127.0.0.1:8765/`. |
-| **Light / dark theme** | Colours from GitHub's Primer design system. FileGuard remembers your choice. |
+| **Light / dark theme** | A modern dashboard design with an indigo accent; both themes share one layout. FileGuard remembers your choice. |
 
 Unreadable files (permission denied, locked, deleted during the scan) never stop a scan. They show up as **Skipped** rows.
 

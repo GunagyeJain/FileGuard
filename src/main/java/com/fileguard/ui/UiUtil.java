@@ -33,71 +33,62 @@ public final class UiUtil {
 
     // ----------------------------------------------------------------- layout
 
-    /** Page heading in the style of GitHub's "Subhead": title, description, divider. */
     public static HBox pageHeader(String title, String subtitle, Node... actions) {
         Label t = new Label(title);
         t.getStyleClass().add("page-title");
         Label s = new Label(subtitle);
         s.getStyleClass().add("page-subtitle");
         s.setWrapText(true);
-        VBox text = new VBox(2, t, s);
+        VBox text = new VBox(4, t, s);
         HBox.setHgrow(text, Priority.ALWAYS);
-        HBox header = new HBox(8, text);
+        HBox header = new HBox(12, text);
         header.getChildren().addAll(actions);
-        header.setAlignment(Pos.BOTTOM_LEFT);
-        header.getStyleClass().add("subhead");
+        header.setAlignment(Pos.CENTER_LEFT);
         return header;
     }
 
-    /** A bordered panel with a grey header row (GitHub "Box"). Heading may be null. */
+    /** A white (or dark) rounded panel with an optional heading. */
     public static VBox card(String heading, Node... content) {
-        return box(heading, null, content);
-    }
-
-    /** Same as {@link #card} but with controls on the right side of the header row. */
-    public static VBox box(String heading, Node headerAction, Node... content) {
-        VBox box = new VBox();
-        box.getStyleClass().add("box");
+        VBox box = new VBox(12);
+        box.getStyleClass().add("card");
         if (heading != null) {
             Label h = new Label(heading);
-            h.getStyleClass().add("box-title");
-            HBox header = new HBox(8, h, spacer());
-            if (headerAction != null) {
-                header.getChildren().add(headerAction);
-            }
-            header.setAlignment(Pos.CENTER_LEFT);
-            header.getStyleClass().add("box-header");
-            box.getChildren().add(header);
+            h.getStyleClass().add("card-title");
+            box.getChildren().add(h);
         }
-        VBox body = new VBox(12, content);
-        body.getStyleClass().add("box-body");
-        box.getChildren().add(body);
+        box.getChildren().addAll(content);
         return box;
     }
 
-    /** Several metric cells joined into one bordered strip. */
-    public static HBox metricStrip(com.fileguard.ui.components.StatCard... cells) {
-        HBox strip = new HBox(cells);
-        strip.getStyleClass().add("metric-strip");
-        if (cells.length > 0) {
-            cells[0].getStyleClass().add("first");
+    /** Same as {@link #card} but with a control on the right side of the heading. */
+    public static VBox box(String heading, Node headerAction, Node... content) {
+        Label h = new Label(heading);
+        h.getStyleClass().add("card-title");
+        HBox header = new HBox(8, h, spacer());
+        if (headerAction != null) {
+            header.getChildren().add(headerAction);
         }
-        return strip;
+        header.setAlignment(Pos.CENTER_LEFT);
+        VBox box = new VBox(12, header);
+        box.getChildren().addAll(content);
+        box.getStyleClass().add("card");
+        return box;
     }
 
-    /** Neutral note, used e.g. for "differences are not corruption". */
+    /** A row of summary cards with even spacing. */
+    public static HBox metricStrip(com.fileguard.ui.components.StatCard... cells) {
+        return new HBox(14, cells);
+    }
+
+    /** Informational banner, used e.g. for the "differences are not corruption" note. */
     public static HBox notice(String text) {
-        return flash(text, "flash");
-    }
-
-    private static HBox flash(String text, String styleClass) {
         Label label = new Label(text);
         label.setWrapText(true);
         label.setMinHeight(Region.USE_PREF_SIZE);
         HBox.setHgrow(label, Priority.ALWAYS);
         HBox box = new HBox(10, Icons.create(Icons.INFO, 16), label);
         box.setAlignment(Pos.CENTER_LEFT);
-        box.getStyleClass().add(styleClass);
+        box.getStyleClass().add("notice");
         return box;
     }
 

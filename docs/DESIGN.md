@@ -295,7 +295,7 @@ If the user presses **Cancel**, `isCancelled()` becomes true. The next chunk che
 
 ## 10. UI design
 
-- **Visual language:** GitHub's Primer design system (exact light and dark colour values), chosen because it's a well-known, professional, neutral style: thin borders, 6 px corners, outlined status labels, monospace paths.
+- **Visual language:** a clean dashboard style: indigo accent, rounded cards, summary cards with coloured icons, soft status labels, and matching light and dark themes.
 - **Navigation:** a sidebar grouped into *Tools* (the three scans) and *Records* (history, activity log), with the backend status always visible.
 - **Feedback:** every long operation shows progress, the current file and a Cancel button. Results show as summary numbers plus a sortable table.
 - **Consistency:** all colours are tokens in `theme-light.css` / `theme-dark.css`; `base.css` contains layout only, so both themes always match.
