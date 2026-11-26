@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FileGuard Backend</title>
+<style>
+  :root {
+    --bg: #ffffff; --bg-subtle: #f6f8fa; --border: #d0d7de; --fg: #1f2328; --muted: #656d76;
+    --accent: #0969da; --success: #1a7f37; --attention: #9a6700; --danger: #d1242f;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0d1117; --bg-subtle: #161b22; --border: #30363d; --fg: #e6edf3; --muted: #7d8590;
+      --accent: #2f81f7; --success: #3fb950; --attention: #d29922; --danger: #f85149;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg);
+         font: 14px/1.5 -apple-system, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif; }
+  header { border-bottom: 1px solid var(--border); background: var(--bg-subtle); padding: 12px 24px;
+           display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  header h1 { font-size: 16px; font-weight: 600; margin: 0; }
+  .status { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--success); }
+  main { max-width: 1100px; margin: 0 auto; padding: 24px 16px; }
+  .toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 16px; }
+  .counts { display: flex; gap: 16px; color: var(--muted); margin-left: auto; font-size: 13px; }
+  .counts b { color: var(--fg); }
+  select, button { font: inherit; padding: 5px 12px; border-radius: 6px; border: 1px solid var(--border);
+                   background: var(--bg-subtle); color: var(--fg); cursor: pointer; }
+  button:hover, select:hover { border-color: var(--muted); }
+  .box { border: 1px solid var(--border); border-radius: 6px; overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; font-weight: 600; font-size: 12px; color: var(--muted); background: var(--bg-subtle);
+       padding: 8px 12px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  td { padding: 8px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  tr:last-child td { border-bottom: 0; }
+  td.time { white-space: nowrap; color: var(--muted); font-variant-numeric: tabular-nums; }
+  td.cat { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: 12px; }
+  .details { color: var(--muted); font-size: 12px; margin-top: 2px; word-break: break-all; }
+  .label { display: inline-block; padding: 0 7px; border: 1px solid currentColor; border-radius: 2em;
+           font-size: 12px; font-weight: 500; line-height: 18px; }
+  .INFO { color: var(--accent); } .WARN { color: var(--attention); } .ERROR { color: var(--danger); }
+  .empty { padding: 32px; text-align: center; color: var(--muted); }
+  code { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: 12px; }
+  footer { color: var(--muted); font-size: 12px; margin-top: 16px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>FileGuard Backend</h1>
+  <span class="status"><span class="dot" id="dot"></span><span id="status">Connecting…</span></span>
+</header>
+<main>
+  <div class="toolbar">
+    <label for="level">Level</label>
+    <select id="level">
+      <option value="">All</option><option>INFO</option><option>WARN</option><option>ERROR</option>
+    </select>
+    <button id="refresh" type="button">Refresh</button>
+    <div class="counts" id="counts"></div>
+  </div>
+  <div class="box">
+    <table>
+      <thead><tr><th>Time</th><th>Level</th><th>Category</th><th>Message</th></tr></thead>
+      <tbody id="rows"><tr><td colspan="4" class="empty">Loading…</td></tr></tbody>
+    </table>
+  </div>
+  <footer>Auto-refreshes every 5 seconds · REST API: <code>GET /api/logs</code>, <code>POST /api/logs</code>, <code>GET /api/stats</code>, <code>GET /api/health</code></footer>
+</main>
+<script>
+  // All text is inserted with textContent, never innerHTML, so log messages cannot inject markup.
+  const rows = document.getElementById('rows');
+  const cell = (text, cls) => { const td = document.createElement('td'); if (cls) td.className = cls; td.textContent = text; return td; };
+
+  async function load() {
+    const level = document.getElementById('level').value;
+    try {
+      const [logsRes, statsRes] = await Promise.all([
+        fetch('/api/logs?limit=300' + (level ? '&level=' + encodeURIComponent(level) : '')),
+        fetch('/api/stats')
+      ]);
+      const logs = await logsRes.json();
+      const stats = await statsRes.json();
+      render(logs.data || []);
+      const c = document.getElementById('counts');
+      c.replaceChildren();
+      for (const k of ['total', 'INFO', 'WARN', 'ERROR']) {
+        const span = document.createElement('span');
+        const b = document.createElement('b'); b.textContent = stats.data[k];
+        span.append(k === 'total' ? 'Total ' : k + ' ', b);
+        c.append(span);
+      }
+      document.getElementById('status').textContent = 'Running on ' + location.host;
+      document.getElementById('dot').style.background = 'var(--success)';
+    } catch (e) {
+      document.getElementById('status').textContent = 'Backend not reachable';
+      document.getElementById('dot').style.background = 'var(--danger)';
+    }
+  }
+
+  function render(list) {
+    rows.replaceChildren();
+    if (list.length === 0) {
+      const tr = document.createElement('tr');
+      const td = cell('No logs yet. Run a scan in the FileGuard app.', 'empty'); td.colSpan = 4;
+      tr.append(td); rows.append(tr); return;
+    }
+    for (const log of list) {
+      const tr = document.createElement('tr');
+      tr.append(cell(log.timestamp.replace('T', ' '), 'time'));
+      const lv = document.createElement('td');
+      const label = document.createElement('span'); label.className = 'label ' + log.level; label.textContent = log.level;
+      lv.append(label); tr.append(lv);
+      tr.append(cell(log.category, 'cat'));
+      const msg = cell(log.message);
+      if (log.details) { const d = document.createElement('div'); d.className = 'details'; d.textContent = log.details; msg.append(d); }
+      tr.append(msg);
+      rows.append(tr);
+    }
+  }
+
+  document.getElementById('refresh').addEventListener('click', load);
+  document.getElementById('level').addEventListener('change', load);
+  load();
+  setInterval(load, 5000);
+</script>
+</body>
+</html>

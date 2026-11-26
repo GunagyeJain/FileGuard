@@ -7,6 +7,7 @@ public enum Page {
     BACKUP("Backup verification", Icons.BACKUP),
     DUPLICATES("Duplicate files", Icons.COPY),
     HISTORY("Scan history", Icons.HISTORY),
+    LOGS("Activity log", Icons.LIST),
     SETTINGS("Settings", Icons.SETTINGS);
 
     private final String title;

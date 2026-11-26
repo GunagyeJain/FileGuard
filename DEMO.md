@@ -1,6 +1,6 @@
 # FileGuard demo guide
 
-A step-by-step script for showing FileGuard to a teacher or examiner. It covers every feature in about **10–12 minutes** and uses prepared demo folders, so the results are always the same.
+A step-by-step script for showing FileGuard to a teacher or examiner. It covers every feature in about **12–14 minutes** and uses prepared demo folders, so the results are always the same.
 
 The expected numbers below come from actually running these steps.
 
@@ -18,13 +18,9 @@ The expected numbers below come from actually running these steps.
 
 2. **Optional, for a clean dashboard:** close FileGuard and rename `C:\Users\<you>\.fileguard\fileguard.db` (for example to `fileguard-old.db`). FileGuard creates a new empty database on the next start. Rename it back afterwards to keep your old history.
 
-3. **Start the app:**
+3. **Start the app:** double-click `dist\FileGuard\FileGuard.exe`. If `dist` doesn't exist yet, double-click `packaging\build-windows-app.bat` once first.
 
-   ```powershell
-   mvn javafx:run
-   ```
-
-   Or press ▶ next to `Launcher.java` in IntelliJ.
+   Check the bottom of the sidebar: it should say **Backend online**.
 
 4. **Keep a File Explorer window open** on `FileGuard\demo-data` so you can show the folders and open files when asked.
 
@@ -164,7 +160,19 @@ Click **Export CSV**, save it, and open it in Excel or Notepad.
 
 ---
 
-### 10. Settings (30 s)
+### 10. Local backend and activity log (1–2 min)
+
+1. Click **Activity log**. Every scan from this demo appears: started, completed and cancelled events, with counts per level at the top.
+2. Click **Open in browser**. The same log, served by the backend at `http://127.0.0.1:8765/`, refreshes every 5 seconds.
+3. Optional: open `http://127.0.0.1:8765/api/logs` in the browser to show the raw JSON from the REST API.
+
+**Say:** "The backend is a small REST server built only from parts of Java: the JDK's built-in HTTP server, no framework. It stores the activity log in its own SQLite database, separate from the app's data, just as a real server keeps its own storage. The app sends logs with Java's HTTP client in the background, so the UI never waits. If the backend is down, logs are queued and delivered later."
+
+**Bonus, to show it's a separate process:** close FileGuard, double-click `dist\FileGuard\FileGuard Backend.exe` (a console window opens), then start `FileGuard.exe` again. The app detects the running backend and uses it instead of starting its own. Close the console window and the sidebar switches to **Backend offline** within a few seconds.
+
+---
+
+### 11. Settings (30 s)
 
 Switch between **Light** and **Dark** theme. Restart the app to show that the choice is remembered.
 
@@ -183,7 +191,10 @@ Switch between **Light** and **Dark** theme. Restart the app to show that the ch
 | How is the code organised? | `model` (data), `core` (files and hashing, no UI or SQL), `db` (JDBC DAOs), `service` (runs a scan and saves it), `ui` (JavaFX). |
 | How do you avoid SQL injection? | Every query uses `PreparedStatement`. Connections are closed with try-with-resources, and saves run in one transaction. |
 | Is a "modified" file corrupted? | Not necessarily. FileGuard only shows that the content is different; a person has to decide whether the change was intended. |
-| What did you test? | 20 JUnit tests: known SHA-256 values, large files, added/modified/deleted detection, backup and duplicate logic, cancellation, data surviving a restart, and CSV export. Run them with `mvn test`. |
+| What is the backend? | A local REST server (`BackendServer`) on `127.0.0.1:8765`, built with the JDK's `com.sun.net.httpserver`. Endpoints: `GET/POST/DELETE /api/logs`, `GET /api/stats`, `GET /api/health`. It stores logs in `backend.db` through `LogRepository` (JDBC, prepared statements). |
+| How does the app talk to it? | `BackendClient` uses `java.net.http.HttpClient` to send JSON asynchronously. A health check every 5 seconds updates the online/offline status and flushes queued logs. |
+| Is the backend secure? | It only listens on 127.0.0.1 (not reachable from the network), validates every field, limits request size to 16 KB, and returns generic error messages without internal details. |
+| What did you test? | 30 JUnit tests: SHA-256 known values, large files, added/modified/deleted detection, backup and duplicate logic, cancellation, data surviving a restart, CSV export, the JSON parser, every REST endpoint (including invalid input), and the client's offline queue. Run them with `mvnw test`. |
 
 ---
 
@@ -194,5 +205,6 @@ Switch between **Light** and **Dark** theme. Restart the app to show that the ch
 | "running scripts is disabled" | Use the full command shown above, which includes `-ExecutionPolicy Bypass`. |
 | Numbers don't match this guide | Run `demo\setup-demo.ps1` again to reset the demo folders. |
 | Integrity check says there's no baseline | Save a baseline for that exact folder first (step 4). |
-| `mvn` isn't recognised | Install Maven, or run the app from IntelliJ. |
+| Sidebar says **Backend offline** | Another program is using port 8765. Close it, or carry on: logs are queued and sent later. |
+| `FileGuard.exe` is missing | Double-click `packaging\build-windows-app.bat` (needs JDK 21 installed). |
 | Big-file scan finishes before you can cancel | Recreate the data with `-LargeFileMB 12288`. |

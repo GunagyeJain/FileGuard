@@ -29,10 +29,10 @@ public class DuplicatesView extends StackPane {
     private final Button findButton = new Button("Find duplicates");
     private final Button exportButton = new Button("Export CSV");
     private final ScanProgressPanel progress = new ScanProgressPanel();
-    private final StatCard examined = new StatCard("Files examined", Icons.STORAGE, "accent");
-    private final StatCard groups = new StatCard("Duplicate groups", Icons.COPY, "warning");
-    private final StatCard copies = new StatCard("Redundant copies", Icons.COPY, "info");
-    private final StatCard wasted = new StatCard("Redundant storage", Icons.STORAGE, "danger");
+    private final StatCard examined = new StatCard("Files examined", "accent");
+    private final StatCard groups = new StatCard("Duplicate groups", "warning");
+    private final StatCard copies = new StatCard("Redundant copies", "info");
+    private final StatCard wasted = new StatCard("Redundant storage", "danger");
     private final Label summary = new Label("No search has been run in this session.");
     private final ResultsTable table = new ResultsTable(true,
             "Choose a folder and press Find duplicates. Files in the same group have identical content.");
@@ -65,7 +65,7 @@ public class DuplicatesView extends StackPane {
                 UiUtil.pageHeader("Duplicate files",
                         "Find files with identical content (same SHA-256 hash) and see how much space the extra copies use."),
                 UiUtil.card("Folder", row, hint), progress,
-                new HBox(14, examined, groups, copies, wasted),
+                UiUtil.metricStrip(examined, groups, copies, wasted),
                 resultsHeader, table);
         getChildren().add(UiUtil.scrollPage(page));
     }

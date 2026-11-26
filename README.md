@@ -1,8 +1,23 @@
 # FileGuard
 
-FileGuard is a JavaFX desktop app for checking file integrity, verifying backups and finding duplicate files. It compares file contents with **SHA-256** hashes and keeps its scan history in a local **SQLite** database.
+FileGuard is a Windows desktop app for checking file integrity, verifying backups and finding duplicate files. It compares file contents with **SHA-256** hashes, keeps its scan history in a local **SQLite** database, and records activity in a small **local backend** (a REST server on `127.0.0.1:8765`).
 
 > **Important:** FileGuard *identifies differences*. It cannot tell whether a change was intentional (an edit) or unwanted (damage or corruption). Always review the results yourself.
+
+![FileGuard dashboard](docs/screenshots/dashboard-light.png)
+
+---
+
+## Run it (no commands)
+
+1. Double-click **`packaging\build-windows-app.bat`** once. It builds the app into `dist\FileGuard\` (about a minute).
+2. Double-click **`dist\FileGuard\FileGuard.exe`**.
+
+That's it. The app folder includes its own Java runtime, so it runs on any Windows 10/11 PC without installing Java. To give it to someone else, send them `dist\FileGuard-1.1.0-windows.zip`: they unzip it and double-click `FileGuard.exe`.
+
+The folder also contains **`FileGuard Backend.exe`**, which runs only the backend in a console window. That's handy for showing it as a separate process (see [Backend](#local-backend)).
+
+> Building needs **JDK 21** installed once (it includes the `jpackage` tool). Maven is **not** needed: the project ships with the Maven wrapper (`mvnw.cmd`), which downloads Maven automatically.
 
 ---
 
@@ -10,198 +25,147 @@ FileGuard is a JavaFX desktop app for checking file integrity, verifying backups
 
 | Feature | What it does |
 |---|---|
-| **File integrity monitoring** | Saves a *baseline* (relative path, size, timestamp and SHA-256 hash of every file) for a folder. Later scans compare the folder with the baseline and report **added**, **modified** and **deleted** files. |
-| **Backup verification** | Compares an original folder with its backup by **relative path**. Reports files **missing in the backup**, files whose **content differs**, and files that exist **only in the backup**. Files with different sizes count as different without hashing; files with the same size are compared by hash. |
-| **Duplicate detection** | Groups files with identical content (same SHA-256), shows each duplicate group and the **redundant storage** (space used by the extra copies). Only files that share a size with another file get hashed. |
-| **Scan history** | Every scan, including cancelled ones, is saved in SQLite with its results. You can open earlier scans on the History page after restarting the app. |
-| **Report export** | Export any result (current or from history) as a **CSV** file that opens in Excel or LibreOffice. |
-| **Background scanning** | Scans run in a JavaFX `Task` on a background thread, with a progress bar, the current file, and a **Cancel** button. Cancelling is cooperative and safe: nothing half-finished is saved. |
-| **Light / dark theme** | Change it in Settings. FileGuard remembers your choice. |
+| **File integrity monitoring** | Saves a *baseline* (relative path, size, timestamp and SHA-256 of every file) for a folder. Later scans report **added**, **modified** and **deleted** files. |
+| **Backup verification** | Compares an original folder with its backup by **relative path**. Reports files **missing in the backup**, files whose **content differs**, and files that exist **only in the backup**. Files with different sizes count as different without hashing. |
+| **Duplicate detection** | Groups files with identical content and shows the **redundant storage** used by the extra copies. Only files that share a size with another file get hashed. |
+| **Scan history** | Every scan, including cancelled ones, is saved in SQLite with its results and stays available after a restart. |
+| **Report export** | Export any result (current or from history) as a **CSV** file for Excel or LibreOffice. |
+| **Background scanning** | Scans run on a background thread (JavaFX `Task`) with a progress bar, the current file and a **Cancel** button. Cancelling is safe: nothing half-finished is saved. |
+| **Local backend + activity log** | A REST server built only from parts of Java stores activity logs (scans started, completed, cancelled or failed; app start; theme changes) in its own SQLite database. View them on the **Activity log** page or in a browser at `http://127.0.0.1:8765/`. |
+| **Light / dark theme** | Colours from GitHub's Primer design system. FileGuard remembers your choice. |
 
-Unreadable files (permission denied, locked, deleted during the scan) never stop a scan. They show up as **Skipped** rows so you can see what was left out.
-
-## Demo
-
-For a presentation, use the prepared demo folders and the step-by-step script in **[DEMO.md](DEMO.md)**:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File demo\setup-demo.ps1
-```
-
-This creates `demo-data\` with an original folder, a backup that has known problems, some duplicates and a large file for showing Cancel. `demo\simulate-changes.ps1` then modifies the original during the demo, so the integrity check has something to find. DEMO.md lists the expected result of every step and likely viva questions.
+Unreadable files (permission denied, locked, deleted during the scan) never stop a scan. They show up as **Skipped** rows.
 
 ## Technology stack
 
-- **Java 21** (LTS)
-- **JavaFX 21** (controls + CSS styling)
-- **Maven** (build and dependencies)
-- **SQLite** through the **sqlite-jdbc** driver (JDBC, prepared statements)
-- **Java Security API** (`MessageDigest`, SHA-256)
-- **JUnit 5** (unit and integration tests)
+- **Java 21** (LTS) and **JavaFX 21** with CSS styling
+- **SQLite** via **sqlite-jdbc** (JDBC with prepared statements)
+- **Java Security API**: `MessageDigest` for SHA-256
+- **Backend:** the JDK's built-in HTTP server (`com.sun.net.httpserver`) with a hand-written JSON helper; the app talks to it with the built-in `java.net.http.HttpClient`
+- **Maven** (through the Maven wrapper) and **JUnit 5**
+- **jpackage** (part of the JDK) to build `FileGuard.exe`
 
-## Prerequisites
+No web frameworks, cloud services or external database servers.
 
-- **JDK 21** or newer ([Eclipse Temurin](https://adoptium.net/) is recommended). Check with `java -version`.
-- **Maven 3.8+** (check with `mvn -version`). You don't need it if you only run the project from IntelliJ IDEA, which has Maven built in.
-- An internet connection the first time you build, so Maven can download JavaFX, SQLite JDBC and JUnit.
+## Local backend
 
-You don't need to install or configure any database server: the SQLite database is created automatically.
-
-## Installation and setup
-
-```bash
-git clone <your-repository-url>
-cd FileGuard
-mvn clean compile
+```
+┌────────────────────┐   HTTP (JSON)    ┌──────────────────────────┐
+│  FileGuard app     │ ───────────────► │  FileGuard backend       │
+│  (JavaFX)          │  POST /api/logs  │  127.0.0.1:8765          │
+│  BackendClient     │ ◄─────────────── │  BackendServer           │
+│                    │  GET  /api/logs  │  LogRepository → SQLite  │
+└────────┬───────────┘                  └──────────┬───────────────┘
+         │                                         │
+   fileguard.db                               backend.db
+   (baselines, scan history)                  (activity logs)
 ```
 
-## Running from IntelliJ IDEA
+- **Starts automatically.** When FileGuard opens, it checks `http://127.0.0.1:8765/api/health`. If a FileGuard backend is already running (for example `FileGuard Backend.exe`), it uses that one; otherwise it starts the backend inside the app.
+- **Never blocks the UI.** Logs are sent asynchronously. If the backend is offline, logs wait in a queue and are sent when it's back. The sidebar shows **Backend online/offline**.
+- **Local only.** The server listens on `127.0.0.1`, so other computers can't reach it. Request bodies are limited to 16 KB and every field is validated.
 
-1. **File → Open…** and select the `FileGuard` folder (the one that contains `pom.xml`). Open it as a Maven project.
-2. Wait for IntelliJ to download the dependencies (progress is shown in the status bar).
-3. Make sure the project SDK is Java 21: **File → Project Structure → Project → SDK**.
-4. Pick one of these:
-   - Open the **Maven** tool window → `FileGuard` → **Plugins → javafx → javafx:run** (double-click), **or**
-   - Open `src/main/java/com/fileguard/Launcher.java` and click the green ▶ next to `main`.
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/api/health` | Is the backend running? (service name, version, uptime) |
+| `GET` | `/api/logs?limit=&level=&category=` | List logs, newest first |
+| `POST` | `/api/logs` | Add a log: `{"level":"INFO","category":"SCAN","message":"…","details":"…"}` |
+| `DELETE` | `/api/logs` | Delete all logs |
+| `GET` | `/api/stats` | Count of logs per level |
+| `GET` | `/` | Log viewer web page |
 
-> Use `Launcher` (not `FileGuardApp`) as the main class. It is a plain class that starts JavaFX, so the app runs with JavaFX on the normal classpath and you don't need any VM options.
+Every response uses the same envelope: `{"success": true, "data": …, "error": null}`.
 
-## Running from the terminal (Maven)
+## Running from IntelliJ IDEA (for development)
 
-```bash
-# compile and start the application
-mvn clean javafx:run
+1. **File → Open…** and select the `FileGuard` folder (the one with `pom.xml`).
+2. Set the project SDK to **Java 21** (**File → Project Structure → Project**).
+3. Run `src/main/java/com/fileguard/Launcher.java` (green ▶ next to `main`).
 
-# run the unit tests
-mvn test
+To run only the backend, run `com.fileguard.server.BackendServer`.
+
+## Running from a terminal (optional)
+
+```powershell
+.\mvnw.cmd javafx:run       # start the app
+.\mvnw.cmd test             # run the 30 unit and integration tests
 ```
 
 ## Project folder structure
 
 ```
 FileGuard/
-├── pom.xml                         Maven build (JavaFX, SQLite JDBC, JUnit 5)
-├── README.md
-├── DEMO.md                         step-by-step presentation script
-├── .gitignore
-├── demo/                           setup-demo.ps1, simulate-changes.ps1
-├── docs/screenshots/               README images
+├── pom.xml                          Maven build (JavaFX, SQLite JDBC, JUnit 5, packaging)
+├── mvnw.cmd, mvnw, .mvn/            Maven wrapper (no Maven install needed)
+├── README.md, DEMO.md               documentation and presentation script
+├── packaging/
+│   ├── build-windows-app.bat        double-click: builds dist\FileGuard\FileGuard.exe
+│   ├── backend-launcher.properties  second launcher: FileGuard Backend.exe
+│   └── fileguard.ico                app icon
+├── demo/                            setup-demo.ps1, simulate-changes.ps1
+├── docs/screenshots/                README images
 └── src/
-    ├── main/
-    │   ├── java/com/fileguard/
-    │   │   ├── Launcher.java       main() entry point
-    │   │   ├── FileGuardApp.java   JavaFX Application: opens DB, shows window
-    │   │   ├── model/              Plain data records and enums
-    │   │   │   ├── FileEntry.java, ResultItem.java, ScanReport.java, BaselineInfo.java
-    │   │   │   └── ScanType.java, ScanStatus.java, ResultStatus.java
-    │   │   ├── core/               File processing (no UI, no database)
-    │   │   │   ├── FileHasher.java        streamed SHA-256 hashing
-    │   │   │   ├── FolderScanner.java     walks folders, hashes file lists with progress
-    │   │   │   ├── IntegrityChecker.java  baseline vs current comparison
-    │   │   │   ├── BackupVerifier.java    original vs backup comparison
-    │   │   │   ├── DuplicateFinder.java   duplicate grouping
-    │   │   │   ├── ReportExporter.java    CSV export
-    │   │   │   ├── ProgressListener.java  progress + cancellation interface
-    │   │   │   └── Format.java            byte/date formatting helpers
-    │   │   ├── db/                 Database access (JDBC)
-    │   │   │   ├── Database.java          connection + schema creation
-    │   │   │   ├── BaselineDao.java       baselines and their files
-    │   │   │   └── ScanHistoryDao.java    scans and their results
-    │   │   ├── service/
-    │   │   │   └── ScanService.java       runs scans and saves them to history
-    │   │   └── ui/                 JavaFX user interface
-    │   │       ├── MainWindow.java, Page.java, AppContext.java
-    │   │       ├── ScanTask.java          background Task wrapper
-    │   │       ├── ThemeManager.java, Icons.java, UiUtil.java
-    │   │       ├── components/            FolderField, StatCard, ResultsTable,
-    │   │       │                          ScanProgressPanel, StatusBadge
-    │   │       └── views/                 Dashboard, Integrity, Backup, Duplicates,
-    │   │                                  History, Settings pages
-    │   └── resources/com/fileguard/css/
-    │       ├── base.css                   layout and component styles
-    │       ├── theme-light.css            light colour tokens
-    │       └── theme-dark.css             dark colour tokens
+    ├── main/java/com/fileguard/
+    │   ├── Launcher.java            main() entry point
+    │   ├── FileGuardApp.java        opens DB, connects/starts backend, shows window
+    │   ├── model/                   records and enums (ScanReport, LogEntry, …)
+    │   ├── core/                    hashing, scanning, comparisons, CSV export (no UI, no SQL)
+    │   ├── db/                      Database, BaselineDao, ScanHistoryDao (JDBC)
+    │   ├── service/                 ScanService (runs + saves scans), ActivityLogger
+    │   ├── server/                  backend: BackendServer, LogRepository, Json
+    │   ├── client/                  BackendClient (HTTP client used by the app)
+    │   └── ui/                      MainWindow, ScanTask, ThemeManager, components/, views/
+    ├── main/resources/com/fileguard/
+    │   ├── css/                     base.css, theme-light.css, theme-dark.css
+    │   ├── server/index.html        backend log viewer page
+    │   └── icon.png                 window icon
     └── test/java/com/fileguard/
-        ├── core/FileHasherTest.java       SHA-256 known values, large files, cancellation
-        ├── core/ComparisonTest.java       integrity, backup and duplicate logic
-        └── service/ScanServiceTest.java   end-to-end with real SQLite, restart, CSV, cancel
+        ├── core/                    hashing, comparison logic
+        ├── service/                 end-to-end scans with SQLite, restart, CSV, cancel
+        └── server/                  JSON, REST endpoints, validation, offline queue
 ```
 
-### How the layers fit together
+## Databases
 
+Both are created automatically on first start and kept between sessions.
+
+| File | Owner | Tables |
+|---|---|---|
+| `~/.fileguard/fileguard.db` | Desktop app | `baselines`, `baseline_files`, `scans`, `scan_results` |
+| `~/.fileguard/backend.db` | Backend | `logs` (time, level, category, message, details) |
+
+On Windows `~` is `C:\Users\<you>`. Settings shows both paths. All queries use `PreparedStatement`, resources are closed with try-with-resources, and multi-row writes run in a transaction.
+
+## Demo
+
+Use the prepared demo folders and the step-by-step script in **[DEMO.md](DEMO.md)**:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File demo\setup-demo.ps1
 ```
-UI (views)  ──►  ScanTask (background thread)  ──►  ScanService  ──►  core/* (files, hashing)
-                                                         │
-                                                         └──►  db/* DAOs  ──►  SQLite file
-```
 
-`core` knows nothing about JavaFX or SQL, so it is easy to unit-test. The UI never touches files or SQL directly.
-
-## Database
-
-- **Location:** `~/.fileguard/fileguard.db` (on Windows: `C:\Users\<you>\.fileguard\fileguard.db`). The **Settings** page shows the exact path. You can choose a different file with `-Dfileguard.db=path/to/file.db`.
-- The database is created automatically on first start and is kept between sessions.
-- **Tables:**
-
-| Table | Contents |
-|---|---|
-| `baselines` | One row per monitored folder: path, creation time, file count, total size |
-| `baseline_files` | Relative path, size, last-modified time and SHA-256 of each file in a baseline |
-| `scans` | Scan history: type, folders, start time, duration, status, counts, summary |
-| `scan_results` | Detailed result rows of each scan (status, relative path, details, size, duplicate group) |
-
-All queries use `PreparedStatement`, all resources are closed with try-with-resources, and multi-row writes run in a single transaction. Deleting a baseline or scan also deletes its rows (`ON DELETE CASCADE`).
+This creates `demo-data\` with an original folder, a backup that has known problems, some duplicates and a large file for showing Cancel.
 
 ## Screenshots
 
-All screenshots come from the real application running on sample data (a project folder with a baseline, later edits, a slightly outdated backup and some duplicate photos).
-
-### Dashboard
-![Dashboard in light theme](docs/screenshots/dashboard-light.png)
-
-### File integrity check
-A baseline was saved, then two files were edited, one was deleted and two were added.
-![File integrity results](docs/screenshots/integrity.png)
-
-### Backup verification
-![Backup verification results](docs/screenshots/backup.png)
-
-### Duplicate files
-![Duplicate file groups](docs/screenshots/duplicates.png)
-
-### Scan history
-Previous scans are loaded from SQLite. Selecting a scan shows its stored results.
-![Scan history](docs/screenshots/history.png)
-
-### Dark theme
-![Dashboard in dark theme](docs/screenshots/dashboard-dark.png)
-![File integrity in dark theme](docs/screenshots/integrity-dark.png)
-![Settings in dark theme](docs/screenshots/settings-dark.png)
+| | |
+|---|---|
+| **Dashboard** ![Dashboard](docs/screenshots/dashboard-light.png) | **Dark theme** ![Dashboard dark](docs/screenshots/dashboard-dark.png) |
+| **File integrity** ![Integrity](docs/screenshots/integrity.png) | **Backup verification** ![Backup](docs/screenshots/backup.png) |
+| **Duplicate files** ![Duplicates](docs/screenshots/duplicates.png) | **Scan history** ![History](docs/screenshots/history.png) |
+| **Activity log (backend)** ![Activity log](docs/screenshots/activity-log.png) | **Activity log, dark** ![Activity log dark](docs/screenshots/activity-log-dark.png) |
 
 ## Known limitations
 
 - FileGuard reports **differences only**. It can't decide whether a change is legitimate or corruption.
-- Integrity checks and backup verification read file contents, so very large folders take time (the speed depends on your disk).
-- Paths are compared exactly as text. On Windows, renaming a file by case only (e.g. `Photo.JPG` → `photo.jpg`) shows up as one deleted and one added file.
-- Symbolic links and junctions are **not followed** (to avoid loops and counting files twice).
-- Empty (0-byte) files are ignored by duplicate detection.
-- A file that changes *while* it is being hashed may be reported in whichever state was read.
-- Each folder has one baseline. Saving a new baseline replaces the old one (FileGuard asks you to confirm first).
-- Reports are exported as CSV only.
+- Paths are compared exactly as text. On Windows, renaming a file by case only shows up as one deleted and one added file.
+- Symbolic links and junctions are not followed. Empty (0-byte) files are ignored by duplicate detection.
+- Each folder has one baseline. Saving a new one replaces the old one (after a confirmation).
+- The backend uses port **8765**. If another program uses that port, FileGuard still works but shows *Backend offline* and keeps logs queued until it can deliver them.
+- The packaged app is built for Windows. On macOS or Linux, run it from IntelliJ or with `mvnw javafx:run`.
 
 ## What to commit to GitHub
 
-**Include:**
-- `pom.xml`
-- `src/` (all Java sources, CSS resources and tests)
-- `README.md`
-- `.gitignore`
-- `docs/screenshots/` (the images used in this README)
-- `DEMO.md` and `demo/` (the demo scripts)
+**Include:** `pom.xml`, `mvnw*`, `.mvn/`, `src/`, `packaging/`, `demo/`, `docs/screenshots/`, `README.md`, `DEMO.md`, `.gitignore`, `.gitattributes`.
 
-**Do not include** (already covered by `.gitignore`):
-- `target/` (compiled classes and build output, regenerated by Maven)
-- `.idea/`, `*.iml`, `out/` (IntelliJ project files, different on every machine)
-- `*.db` (your personal scan history; the app creates a fresh database automatically)
-- exported `*.csv` reports and log files
-- `demo-data/` (generated by `demo\setup-demo.ps1`, about 6 GB)
+**Don't include** (already in `.gitignore`): `target/`, `dist/` (the built app; share the zip instead, for example as a GitHub Release), `.idea/`, `*.iml`, `*.db`, `demo-data/`, `demo-results/`, exported `*.csv` files.

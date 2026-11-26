@@ -1,39 +1,40 @@
 package com.fileguard.ui.components;
 
-import com.fileguard.ui.Icons;
 import javafx.geometry.Pos;
 import javafx.scene.control.Label;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
-import javafx.scene.layout.StackPane;
+import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
 
 /**
- * A summary card with an icon, a title, a large value and a small caption.
- * The accent ("accent", "success", "warning", "danger", "info") sets the icon colour.
+ * One cell of a metric strip: a small coloured dot with a label, a large value
+ * and an optional caption. Several cells are placed side by side with
+ * {@link com.fileguard.ui.UiUtil#metricStrip(StatCard...)}.
+ *
+ * tone: "accent", "success", "warning", "danger", "info", "done" or "neutral".
  */
 public class StatCard extends VBox {
 
-    private final Label value = new Label("-");
+    private final Label value = new Label("—");
     private final Label caption = new Label();
 
-    public StatCard(String title, String icon, String accent) {
-        super(10);
-        getStyleClass().addAll("card", "stat-card");
-        setMinWidth(150);
-        HBox.setHgrow(this, Priority.ALWAYS);
+    public StatCard(String title, String tone) {
+        super(4);
+        getStyleClass().add("metric");
+        setMinWidth(140);
         setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(this, Priority.ALWAYS);
 
-        StackPane iconBox = new StackPane(Icons.create(icon, 16));
-        iconBox.getStyleClass().addAll("stat-icon", "tone-" + accent);
-
+        Region dot = new Region();
+        dot.getStyleClass().addAll("dot", "tone-" + tone);
         Label titleLabel = new Label(title);
-        titleLabel.getStyleClass().add("stat-title");
-        HBox top = new HBox(10, iconBox, titleLabel);
+        titleLabel.getStyleClass().add("metric-title");
+        HBox top = new HBox(8, dot, titleLabel);
         top.setAlignment(Pos.CENTER_LEFT);
 
-        value.getStyleClass().add("stat-value");
-        caption.getStyleClass().add("stat-caption");
+        value.getStyleClass().add("metric-value");
+        caption.getStyleClass().add("metric-caption");
         caption.setWrapText(true);
         getChildren().addAll(top, value, caption);
     }
@@ -47,7 +48,7 @@ public class StatCard extends VBox {
     }
 
     public void reset() {
-        value.setText("-");
+        value.setText("—");
         caption.setText("");
     }
 }

@@ -11,6 +11,7 @@ import com.fileguard.db.Database;
 import com.fileguard.db.ScanHistoryDao;
 import com.fileguard.model.BaselineInfo;
 import com.fileguard.model.FileEntry;
+import com.fileguard.model.LogLevel;
 import com.fileguard.model.ResultItem;
 import com.fileguard.model.ResultStatus;
 import com.fileguard.model.ScanReport;
@@ -51,10 +52,21 @@ public class ScanService {
     private final BaselineDao baselineDao;
     private final ScanHistoryDao historyDao;
     private final FolderScanner scanner = new FolderScanner();
+    private final ActivityLogger logger;
 
     public ScanService(Database database) {
+        this(database, ActivityLogger.NONE);
+    }
+
+    /** @param logger receives scan events; the app passes the backend client here */
+    public ScanService(Database database, ActivityLogger logger) {
         this.baselineDao = new BaselineDao(database);
         this.historyDao = new ScanHistoryDao(database);
+        this.logger = logger;
+    }
+
+    public ActivityLogger logger() {
+        return logger;
     }
 
     // ------------------------------------------------------------------ scans
@@ -177,17 +189,26 @@ public class ScanService {
                                ProgressListener progress, ScanBody body) throws IOException, SQLException {
         LocalDateTime startedAt = now();
         long startNanos = System.nanoTime();
+        String target = secondFolder == null ? folder : folder + " -> " + secondFolder;
+        logger.log(LogLevel.INFO, "SCAN", type.label() + " started", target);
         try {
             Outcome outcome = body.run();
             progress.updateMessage("Saving results...");
             ScanReport report = new ScanReport(0, type, folder, secondFolder, startedAt, elapsedMs(startNanos),
                     ScanStatus.COMPLETED, outcome.filesScanned(), outcome.bytesScanned(),
                     ScanReport.countIssues(outcome.items()), outcome.redundantBytes(), outcome.summary(), outcome.items());
-            return report.withId(historyDao.save(report));
+            ScanReport saved = report.withId(historyDao.save(report));
+            logger.log(LogLevel.INFO, "SCAN", type.label() + " completed: " + outcome.summary(),
+                    target + " (" + Format.duration(saved.durationMs()) + ")");
+            return saved;
         } catch (CancellationException e) {
             ScanReport cancelled = new ScanReport(0, type, folder, secondFolder, startedAt, elapsedMs(startNanos),
                     ScanStatus.CANCELLED, 0, 0, 0, 0, "Cancelled by user before finishing", List.of());
             historyDao.save(cancelled);
+            logger.log(LogLevel.WARN, "SCAN", type.label() + " cancelled by user", target);
+            throw e;
+        } catch (IOException | SQLException | RuntimeException e) {
+            logger.log(LogLevel.ERROR, "SCAN", type.label() + " failed: " + e.getMessage(), target);
             throw e;
         }
     }

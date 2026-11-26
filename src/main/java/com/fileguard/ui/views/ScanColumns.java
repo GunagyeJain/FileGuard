@@ -17,7 +17,9 @@ final class ScanColumns {
     }
 
     static TableColumn<ScanReport, String> date() {
-        return text("Date", 150, r -> Format.dateTime(r.startedAt()));
+        TableColumn<ScanReport, String> col = text("Date", 160, r -> Format.dateTime(r.startedAt()));
+        col.setMinWidth(160);
+        return col;
     }
 
     static TableColumn<ScanReport, String> type() {
@@ -72,6 +74,7 @@ final class ScanColumns {
             }
         });
         col.setPrefWidth(width);
+        col.setMinWidth(Math.min(width, 140));
         return col;
     }
 }

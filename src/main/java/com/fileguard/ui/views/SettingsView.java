@@ -66,15 +66,34 @@ public class SettingsView extends StackPane {
         HBox dbRow = new HBox(8, dbPath, openFolder);
         dbRow.setAlignment(Pos.CENTER_LEFT);
 
+        // Backend: where the activity log is stored and how to reach it.
+        Path backendDb = com.fileguard.server.BackendServer.defaultDbFile().toAbsolutePath();
+        TextField backendUrl = new TextField(ctx.backend().baseUri().toString());
+        backendUrl.setEditable(false);
+        backendUrl.getStyleClass().add("mono");
+        HBox.setHgrow(backendUrl, Priority.ALWAYS);
+        Button openViewer = new Button("Open log viewer");
+        openViewer.setOnAction(e -> ctx.hostServices().showDocument(ctx.backend().baseUri().toString()));
+        HBox backendRow = new HBox(8, backendUrl, openViewer);
+        backendRow.setAlignment(Pos.CENTER_LEFT);
+        Label backendDbLabel = label("Log database: " + backendDb, "muted");
+        backendDbLabel.getStyleClass().add("small");
+        dbPath.getStyleClass().add("mono");
+
         VBox page = new VBox(18,
-                UiUtil.pageHeader("Settings", "Appearance and information about FileGuard."),
+                UiUtil.pageHeader("Settings", "Appearance, storage and information about FileGuard."),
                 UiUtil.card("Appearance", themeRow),
                 UiUtil.card("Data",
                         label("Baselines and scan history are stored in a local SQLite database. "
                                 + "It is created automatically and kept between sessions.", "muted"),
                         dbRow),
+                UiUtil.card("Local backend",
+                        label("A small REST server on this computer that records activity logs (scans, exports, errors) "
+                                + "in its own SQLite database. FileGuard starts it automatically; it only accepts "
+                                + "connections from this computer.", "muted"),
+                        backendRow, backendDbLabel),
                 UiUtil.card("About FileGuard",
-                        label("Version 1.0.0", "setting-name"),
+                        label("Version 1.1.0", "setting-name"),
                         label("FileGuard checks file integrity, verifies backups and finds duplicate files using "
                                 + "SHA-256 hashes. All processing happens locally on this computer.", "muted"),
                         UiUtil.notice(ReportExporter.DISCLAIMER)));
@@ -85,6 +104,7 @@ public class SettingsView extends StackPane {
         Label l = new Label(text);
         l.getStyleClass().add(style);
         l.setWrapText(true);
+        l.setMinHeight(javafx.scene.layout.Region.USE_PREF_SIZE); // wrap instead of cutting the text off
         return l;
     }
 }

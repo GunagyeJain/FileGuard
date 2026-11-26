@@ -1,2 +1,5 @@
 # Keep demo scripts byte-identical on every machine so DEMO.md sizes match
 *.ps1 text eol=lf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+mvnw text eol=lf

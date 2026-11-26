@@ -50,7 +50,7 @@ public class ResultsTable extends TableView<ResultItem> {
 
         TableColumn<ResultItem, String> path = new TableColumn<>("Relative path");
         path.setCellValueFactory(c -> new ReadOnlyStringWrapper(c.getValue().path()));
-        path.setCellFactory(c -> new TooltipCell());
+        path.setCellFactory(c -> new TooltipCell("mono"));
         path.setPrefWidth(360);
 
         TableColumn<ResultItem, Long> size = new TableColumn<>("Size");
@@ -68,7 +68,7 @@ public class ResultsTable extends TableView<ResultItem> {
 
         TableColumn<ResultItem, String> detail = new TableColumn<>("Details");
         detail.setCellValueFactory(c -> new ReadOnlyStringWrapper(c.getValue().detail()));
-        detail.setCellFactory(c -> new TooltipCell());
+        detail.setCellFactory(c -> new TooltipCell("muted"));
         detail.setPrefWidth(320);
 
         getColumns().add(path);
@@ -97,6 +97,10 @@ public class ResultsTable extends TableView<ResultItem> {
 
     /** Text cell that shows the full value in a tooltip (long paths get cut off). */
     static class TooltipCell extends TableCell<ResultItem, String> {
+        TooltipCell(String styleClass) {
+            getStyleClass().add(styleClass);
+        }
+
         @Override
         protected void updateItem(String item, boolean empty) {
             super.updateItem(item, empty);

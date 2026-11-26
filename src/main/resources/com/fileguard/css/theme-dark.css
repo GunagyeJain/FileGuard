@@ -1,35 +1,46 @@
-/* Dark theme: colour tokens only. Layout and shapes live in base.css. */
+/*
+ * Dark theme - colour values from GitHub's Primer design system ("dark default").
+ * Only colour tokens live here; layout and shapes are in base.css.
+ */
 .root {
-    -fg-bg: #0e131d;
-    -fg-surface: #161c29;
-    -fg-surface-2: #1b2232;
-    -fg-hover: #222a3c;
-    -fg-border: #262f42;
-    -fg-border-strong: #364056;
-    -fg-text: #e5e9f2;
-    -fg-text-muted: #8e98ad;
-    -fg-sidebar: #121825;
+    -fg-bg: #0d1117;
+    -fg-surface: #0d1117;
+    -fg-subtle: #161b22;
+    -fg-inset: #010409;
+    -fg-sidebar: #010409;
+    -fg-hover: #161b22;
+    -fg-selected: #1f242c;
+    -fg-border: #30363d;
+    -fg-border-muted: #21262d;
 
-    -fg-accent: #8b8ff8;
-    -fg-accent-hover: #a2a5fa;
-    -fg-accent-soft: #252848;
-    -fg-on-accent: #0e131d;
+    -fg-text: #e6edf3;
+    -fg-text-muted: #7d8590;
+    -fg-text-on-emphasis: #ffffff;
 
-    -fg-success: #4ade80;
-    -fg-success-soft: #15291f;
-    -fg-warning: #fbbf24;
-    -fg-warning-soft: #2c2412;
-    -fg-danger: #f87171;
-    -fg-danger-soft: #2e1719;
-    -fg-info: #38bdf8;
-    -fg-info-soft: #112534;
-    -fg-neutral: #a3acbf;
-    -fg-neutral-soft: #232a39;
+    -fg-accent: #4493f8;
+    -fg-accent-subtle: #121d2f;
+    -fg-accent-border: #1f6feb;
 
-    -fx-base: #1b2232;
-    -fx-background: #0e131d;
-    -fx-control-inner-background: #161c29;
-    -fx-accent: #8b8ff8;
-    -fx-focus-color: #8b8ff8;
-    -fx-faint-focus-color: #8b8ff822;
+    -fg-btn-bg: #21262d;
+    -fg-btn-hover: #292e36;
+    -fg-btn-border: #363b42;
+    -fg-btn-primary: #238636;
+    -fg-btn-primary-hover: #29903b;
+    -fg-btn-primary-border: #2ea043;
+
+    -fg-success: #3fb950;
+    -fg-success-subtle: #12261e;
+    -fg-attention: #d29922;
+    -fg-attention-subtle: #272115;
+    -fg-danger: #f85149;
+    -fg-danger-subtle: #25171c;
+    -fg-done: #ab7df8;
+    -fg-neutral: #7d8590;
+
+    -fx-base: #21262d;
+    -fx-background: #0d1117;
+    -fx-control-inner-background: #0d1117;
+    -fx-accent: #1f6feb;
+    -fx-focus-color: #1f6feb;
+    -fx-faint-focus-color: #1f6feb22;
 }

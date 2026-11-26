@@ -30,10 +30,10 @@ public class BackupView extends StackPane {
     private final Button verifyButton = new Button("Verify backup");
     private final Button exportButton = new Button("Export CSV");
     private final ScanProgressPanel progress = new ScanProgressPanel();
-    private final StatCard examined = new StatCard("Files examined", Icons.STORAGE, "accent");
-    private final StatCard missing = new StatCard("Missing in backup", Icons.WARNING, "danger");
-    private final StatCard different = new StatCard("Content differs", Icons.EDIT, "warning");
-    private final StatCard extra = new StatCard("Only in backup", Icons.BACKUP, "info");
+    private final StatCard examined = new StatCard("Files examined", "accent");
+    private final StatCard missing = new StatCard("Missing in backup", "danger");
+    private final StatCard different = new StatCard("Content differs", "warning");
+    private final StatCard extra = new StatCard("Only in backup", "info");
     private final Label summary = new Label("No verification has been run in this session.");
     private final ResultsTable table = new ResultsTable(false,
             "Choose the original folder and its backup, then press Verify backup.");
@@ -79,7 +79,7 @@ public class BackupView extends StackPane {
         VBox page = new VBox(18,
                 UiUtil.pageHeader("Backup verification",
                         "Check that a backup contains every file of the original folder with identical content."),
-                folders, progress, new HBox(14, examined, missing, different, extra),
+                folders, progress, UiUtil.metricStrip(examined, missing, different, extra),
                 UiUtil.notice(ReportExporter.DISCLAIMER),
                 resultsHeader, table);
         getChildren().add(UiUtil.scrollPage(page));

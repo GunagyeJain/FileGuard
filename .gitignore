@@ -34,3 +34,6 @@ demo-data/
 
 # Output of an automated demo run
 demo-results/
+
+# Packaged Windows app built by packaging/build-windows-app.bat
+dist/

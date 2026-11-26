@@ -23,9 +23,10 @@ public class FolderField extends HBox {
         super(8);
         setAlignment(Pos.CENTER_LEFT);
         field.setPromptText(prompt);
+        field.getStyleClass().add("mono");
         HBox.setHgrow(field, Priority.ALWAYS);
         browse.setGraphic(Icons.create(Icons.FOLDER, 14));
-        browse.getStyleClass().add("button-secondary");
+
         browse.setOnAction(e -> choose());
         getChildren().addAll(field, browse);
     }
